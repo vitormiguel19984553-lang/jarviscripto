@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Coin, analyse } from "@/lib/market";
+import { supabase } from "@/integrations/supabase/client";
 
 export type TradeLog = {
   id: string;
@@ -18,23 +19,135 @@ export type Risk = {
   maxLossPerDay: number;
 };
 
-const DEFAULT_RISK: Risk = { minTrade: 25, maxLossPerTrade: 15, maxLossPerDay: 60 };
-
-export function useJarvis(coins: Coin[], selected: string[]) {
-  const [available, setAvailable] = useState(10000);
-  const [invested, setInvested] = useState(2500);
+export function useJarvis(userId: string, coins: Coin[]) {
+  const [available, setAvailable] = useState(0);
+  const [invested, setInvested] = useState(0);
   const [logs, setLogs] = useState<TradeLog[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [durationHours, setDurationHours] = useState(5);
   const [remaining, setRemaining] = useState(0);
-  const [risk, setRisk] = useState<Risk>(DEFAULT_RISK);
+  const [risk, setRisk] = useState<Risk>({
+    minTrade: 25,
+    maxLossPerTrade: 15,
+    maxLossPerDay: 60,
+  });
   const [halted, setHalted] = useState(false);
+  const [loading, setLoading] = useState(true);
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
   const selRef = useRef(selected);
+  const riskRef = useRef(risk);
   coinsRef.current = coins;
   selRef.current = selected;
+  riskRef.current = risk;
+
+  // Carregar carteira, definições e histórico da Cloud
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const [wallet, settings, trades] = await Promise.all([
+        supabase.from("wallets").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("bot_settings").select("*").eq("user_id", userId).maybeSingle(),
+        supabase
+          .from("trades")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+      if (!active) return;
+
+      if (wallet.data) {
+        setAvailable(Number(wallet.data.available));
+        setInvested(Number(wallet.data.invested));
+      } else {
+        await supabase.from("wallets").insert({ user_id: userId });
+        setAvailable(10000);
+      }
+
+      if (settings.data) {
+        setDurationHours(settings.data.duration_hours);
+        setSelected(settings.data.selected_coins ?? []);
+        setRisk({
+          minTrade: Number(settings.data.min_trade),
+          maxLossPerTrade: Number(settings.data.max_loss_trade),
+          maxLossPerDay: Number(settings.data.max_loss_day),
+        });
+      } else {
+        await supabase.from("bot_settings").insert({ user_id: userId });
+      }
+
+      setLogs(
+        (trades.data ?? []).map((t) => ({
+          id: t.id,
+          time: new Date(t.created_at),
+          symbol: t.symbol,
+          action: t.action as "COMPRA" | "VENDA",
+          amount: Number(t.amount),
+          pnl: Number(t.pnl),
+          confidence: t.confidence,
+          reason: t.reason,
+        })),
+      );
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  const persistWallet = useCallback(
+    async (nextAvailable: number, nextInvested: number) => {
+      await supabase
+        .from("wallets")
+        .upsert(
+          {
+            user_id: userId,
+            available: nextAvailable,
+            invested: nextInvested,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+    },
+    [userId],
+  );
+
+  const persistSettings = useCallback(
+    async (patch: Record<string, unknown>) => {
+      await supabase
+        .from("bot_settings")
+        .upsert(
+          { user_id: userId, updated_at: new Date().toISOString(), ...patch },
+          { onConflict: "user_id" },
+        );
+    },
+    [userId],
+  );
+
+  const toggleCoin = (id: string) => {
+    setSelected((s) => {
+      const next = s.includes(id) ? s.filter((x) => x !== id) : [...s, id];
+      void persistSettings({ selected_coins: next });
+      return next;
+    });
+  };
+
+  const updateRisk = (next: Risk) => {
+    setRisk(next);
+    void persistSettings({
+      min_trade: next.minTrade,
+      max_loss_trade: next.maxLossPerTrade,
+      max_loss_day: next.maxLossPerDay,
+    });
+  };
+
+  const updateDuration = (h: number) => {
+    setDurationHours(h);
+    void persistSettings({ duration_hours: h });
+  };
 
   const stopAll = useCallback(() => {
     setRunning(false);
@@ -64,71 +177,111 @@ export function useJarvis(coins: Coin[], selected: string[]) {
 
   useEffect(() => {
     if (!running) return;
-    const engine = setInterval(() => {
+    const engine = setInterval(async () => {
       const pool = coinsRef.current.filter((c) => selRef.current.includes(c.id));
       if (!pool.length) return;
       const coin = pool[Math.floor(Math.random() * pool.length)];
       const signal = analyse(coin);
       if (signal.action === "AGUARDAR") return;
 
-      const amount = Math.max(risk.minTrade, Math.round(risk.minTrade * (1 + Math.random() * 3)));
+      const r = riskRef.current;
+      const amount = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
       const win = Math.random() * 100 < signal.confidence;
       const raw = win
         ? amount * (0.004 + Math.random() * 0.03)
         : -amount * (0.004 + Math.random() * 0.03);
-      const pnl = Math.max(-risk.maxLossPerTrade, Number(raw.toFixed(2)));
+      const pnl = Number(Math.max(-r.maxLossPerTrade, raw).toFixed(2));
 
-      if (pnl < 0 && dayLoss.current + Math.abs(pnl) > risk.maxLossPerDay) {
+      if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
         setRunning(false);
         setHalted(true);
         return;
       }
       if (pnl < 0) dayLoss.current += Math.abs(pnl);
 
-      setInvested((v) => Number((v + pnl).toFixed(2)));
-      setLogs((l) =>
-        [
-          {
-            id: crypto.randomUUID(),
-            time: new Date(),
-            symbol: coin.symbol.toUpperCase(),
-            action: signal.action === "COMPRAR" ? ("COMPRA" as const) : ("VENDA" as const),
-            amount,
-            pnl,
-            confidence: signal.confidence,
-            reason: signal.reason,
-          },
-          ...l,
-        ].slice(0, 60),
-      );
+      const action = signal.action === "COMPRAR" ? ("COMPRA" as const) : ("VENDA" as const);
+      const { data } = await supabase
+        .from("trades")
+        .insert({
+          user_id: userId,
+          symbol: coin.symbol.toUpperCase(),
+          action,
+          amount,
+          pnl,
+          confidence: signal.confidence,
+          reason: signal.reason,
+        })
+        .select()
+        .single();
+
+      setInvested((v) => {
+        const next = Number((v + pnl).toFixed(2));
+        setAvailable((a) => {
+          void persistWallet(a, next);
+          return a;
+        });
+        return next;
+      });
+
+      if (data) {
+        setLogs((l) =>
+          [
+            {
+              id: data.id,
+              time: new Date(data.created_at),
+              symbol: data.symbol,
+              action,
+              amount,
+              pnl,
+              confidence: signal.confidence,
+              reason: signal.reason,
+            },
+            ...l,
+          ].slice(0, 100),
+        );
+      }
     }, 4000);
     return () => clearInterval(engine);
-  }, [running, risk]);
+  }, [running, userId, persistWallet]);
 
   const transfer = (amount: number, toInvest: boolean) => {
     if (amount <= 0) return;
     if (toInvest && amount <= available) {
-      setAvailable((v) => v - amount);
-      setInvested((v) => v + amount);
+      const a = available - amount;
+      const i = invested + amount;
+      setAvailable(a);
+      setInvested(i);
+      void persistWallet(a, i);
     } else if (!toInvest && amount <= invested) {
-      setInvested((v) => v - amount);
-      setAvailable((v) => v + amount);
+      const a = available + amount;
+      const i = invested - amount;
+      setAvailable(a);
+      setInvested(i);
+      void persistWallet(a, i);
     }
   };
 
-  const deposit = (amount: number) => amount > 0 && setAvailable((v) => v + amount);
+  const deposit = (amount: number) => {
+    if (amount <= 0) return;
+    const a = available + amount;
+    setAvailable(a);
+    void persistWallet(a, invested);
+  };
 
   return {
+    loading,
     available,
     invested,
     logs,
+    selected,
+    toggleCoin,
     running,
     setRunning,
     durationHours,
-    setDurationHours,
+    setDurationHours: updateDuration,
     remaining,
     risk,
-    setRisk,
+    setRisk: updateRisk,
     halted,
     start,
     stopAll,
