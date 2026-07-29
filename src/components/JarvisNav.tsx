@@ -1,0 +1,27 @@
+import { Link } from "@tanstack/react-router";
+
+const items = [
+  { to: "/dashboard", label: "PAINEL" },
+  { to: "/relatorios", label: "RELATÓRIOS" },
+  { to: "/backtest", label: "BACKTEST" },
+] as const;
+
+export function JarvisNav() {
+  return (
+    <nav className="flex items-center gap-1">
+      {items.map((i) => (
+        <Link
+          key={i.to}
+          to={i.to}
+          className="rounded-md px-3 py-1.5 font-display text-[11px] tracking-widest text-muted-foreground transition-colors hover:text-foreground"
+          activeProps={{
+            className:
+              "rounded-md px-3 py-1.5 font-display text-[11px] tracking-widest border border-primary/50 bg-primary/10 text-primary",
+          }}
+        >
+          {i.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
