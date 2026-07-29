@@ -115,7 +115,7 @@ function Relatorios() {
       <section className="hud-panel mt-6 p-5">
         <h2 className="mb-3 text-sm tracking-widest text-primary">CURVA DE RESULTADO</h2>
         {equity.length > 1 ? (
-          <Sparkline data={equity} up={pnl >= 0} />
+          <Sparkline data={equity} positive={pnl >= 0} />
         ) : (
           <p className="text-sm text-muted-foreground">
             Ainda não existem operações suficientes neste período.

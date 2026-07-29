@@ -105,7 +105,7 @@ function Backtest() {
               <p className="text-[10px] text-muted-foreground">{r.name}</p>
               <div className="my-3">
                 {r.equity.length > 1 && (
-                  <Sparkline data={r.equity} up={r.totalReturnPct >= 0} />
+                  <Sparkline data={r.equity} positive={r.totalReturnPct >= 0} />
                 )}
               </div>
               <dl className="space-y-1 text-[11px] text-muted-foreground">
