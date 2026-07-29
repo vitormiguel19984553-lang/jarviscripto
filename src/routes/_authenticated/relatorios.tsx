@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
       },
     ],
   }),
-  component: Relatorios;
+  component: Relatorios,
 });
 
 type Period = 1 | 7 | 30;
