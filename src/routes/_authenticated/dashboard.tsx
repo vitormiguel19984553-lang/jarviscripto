@@ -6,6 +6,7 @@ import { CoinCard } from "@/components/CoinCard";
 import { ControlPanel } from "@/components/ControlPanel";
 import { LogsPanel } from "@/components/LogsPanel";
 import { supabase } from "@/integrations/supabase/client";
+import { JarvisNav } from "@/components/JarvisNav";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -60,7 +61,9 @@ function Dashboard() {
             <p className="text-xs text-muted-foreground">{user.email} · modo simulação</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <JarvisNav />
+
           <div className="flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1.5">
             <span
               className={`size-2 rounded-full ${engine.running ? "bg-success" : "bg-muted-foreground"}`}
