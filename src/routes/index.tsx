@@ -1,11 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { fetchMarkets } from "@/lib/market";
-import { useJarvis } from "@/lib/useJarvis";
-import { CoinCard } from "@/components/CoinCard";
-import { ControlPanel } from "@/components/ControlPanel";
-import { LogsPanel } from "@/components/LogsPanel";
+import { fetchMarkets, analyse, eur, pct } from "@/lib/market";
+import { Sparkline } from "@/components/Sparkline";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -14,63 +12,45 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Painel Jarvis com análise técnica por IA, paper trading simulado, gestão de risco e registo de operações em criptomoedas.",
+          "Análise técnica com IA, sinais com nível de confiança e trading simulado em criptomoedas, com carteira e histórico guardados na cloud.",
       },
       { property: "og:title", content: "Cripto Jarvis — Assistente de Investimento com IA" },
       {
         property: "og:description",
-        content:
-          "Análise em tempo real, sinais de IA com nível de confiança e simulação de trading sem risco.",
+        content: "Sinais de IA em tempo real e paper trading sem risco.",
       },
     ],
   }),
-  component: Index,
+  component: Landing,
 });
 
-function Index() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["markets"],
-    queryFn: fetchMarkets,
-    refetchInterval: 60_000,
-  });
-
-  const coins = data ?? [];
-  const [selected, setSelected] = useState<string[]>([]);
-  const engine = useJarvis(coins, selected);
+function Landing() {
+  const { data } = useQuery({ queryKey: ["markets"], queryFn: fetchMarkets, refetchInterval: 60_000 });
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    if (coins.length && !selected.length) setSelected(coins.slice(0, 4).map((c) => c.id));
-  }, [coins, selected.length]);
-
-  const toggle = (id: string) =>
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setSignedIn(!!session),
+    );
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="flex items-center gap-4">
-          <div
-            className="grid size-12 place-items-center rounded-full border border-primary/50 bg-primary/10"
-            style={{ animation: "pulse-ring 2.4s ease-in-out infinite" }}
-          >
-            <span className="font-display text-xs text-primary text-glow">CJ</span>
-          </div>
-          <div>
-            <h1 className="text-xl text-glow sm:text-2xl">CRIPTO JARVIS</h1>
-            <p className="text-xs text-muted-foreground">
-              Assistente de investimento com IA · modo simulação (paper trading)
-            </p>
-          </div>
+    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-6">
+        <div>
+          <h1 className="text-2xl text-glow sm:text-3xl">CRIPTO JARVIS</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Assistente de investimento em criptomoedas com IA · modo simulação
+          </p>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1.5">
-          <span
-            className={`size-2 rounded-full ${engine.running ? "bg-success" : "bg-muted-foreground"}`}
-            style={engine.running ? { animation: "pulse-ring 1.2s infinite" } : undefined}
-          />
-          <span className="font-display text-[11px] tracking-widest">
-            {engine.running ? "IA ATIVA" : "IA EM ESPERA"}
-          </span>
-        </div>
+        <Link
+          to={signedIn ? "/dashboard" : "/auth"}
+          className="rounded-md bg-primary px-4 py-2 font-display text-xs text-primary-foreground"
+        >
+          {signedIn ? "ABRIR PAINEL" : "ENTRAR / CRIAR CONTA"}
+        </Link>
       </header>
 
       <p className="mt-3 text-xs text-muted-foreground">
@@ -78,40 +58,51 @@ function Index() {
         garantido — investir em criptomoedas envolve risco de perda total.
       </p>
 
-      <section className="mt-6">
-        <h2 className="mb-3 text-sm tracking-widest text-primary">MERCADO E SINAIS DA IA</h2>
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">A sincronizar dados de mercado…</p>
-        )}
-        {isError && (
-          <p className="text-sm text-destructive">
-            Não foi possível obter os dados de mercado. Tenta novamente dentro de momentos.
-          </p>
-        )}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {coins.map((coin) => (
-            <CoinCard
-              key={coin.id}
-              coin={coin}
-              selected={selected.includes(coin.id)}
-              onToggle={() => toggle(coin.id)}
-            />
-          ))}
+      <section className="mt-8">
+        <h2 className="mb-3 text-sm tracking-widest text-primary">SINAIS PÚBLICOS DA IA</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {(data ?? []).map((coin) => {
+            const s = analyse(coin);
+            const up = (coin.price_change_percentage_24h ?? 0) >= 0;
+            return (
+              <article key={coin.id} className="hud-panel p-4">
+                <div className="flex items-center gap-3">
+                  <img src={coin.image} alt={coin.name} className="size-8 rounded-full" />
+                  <div className="min-w-0">
+                    <p className="font-display text-sm">{coin.symbol.toUpperCase()}</p>
+                    <p className="truncate text-xs text-muted-foreground">{coin.name}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-end justify-between">
+                  <p className="font-display text-lg text-glow">{eur(coin.current_price)}</p>
+                  <p className={`text-sm ${up ? "text-success" : "text-destructive"}`}>
+                    {pct(coin.price_change_percentage_24h)}
+                  </p>
+                </div>
+                <Sparkline data={coin.sparkline_in_7d?.price ?? []} positive={up} />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Sinal: <span className="text-primary">{s.action}</span> · confiança{" "}
+                  {s.confidence}%
+                </p>
+              </article>
+            );
+          })}
         </div>
       </section>
 
-      <div className="mt-6">
-        <ControlPanel engine={engine} selectedCount={selected.length} />
-      </div>
-
-      <div className="mt-6">
-        <LogsPanel logs={engine.logs} />
-      </div>
-
-      <footer className="mt-8 pb-4 text-center text-xs text-muted-foreground">
-        Fase 1 · Próximas fases: contas e histórico na cloud, backtesting, relatórios e planos de
-        subscrição.
-      </footer>
+      <section className="hud-panel mt-8 p-6 text-center">
+        <h2 className="text-lg">CONTA E HISTÓRICO NA CLOUD</h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
+          Cria conta para ativar a automação, definir limites de risco e guardar a tua carteira
+          simulada e todas as operações — disponíveis em qualquer dispositivo.
+        </p>
+        <Link
+          to={signedIn ? "/dashboard" : "/auth"}
+          className="mt-4 inline-block rounded-md bg-primary px-5 py-2 font-display text-xs text-primary-foreground"
+        >
+          {signedIn ? "ABRIR PAINEL" : "COMEÇAR AGORA"}
+        </Link>
+      </section>
     </main>
   );
 }
