@@ -1,0 +1,156 @@
+import { useState } from "react";
+import type { useJarvis } from "@/lib/useJarvis";
+import { eur } from "@/lib/market";
+
+type Engine = ReturnType<typeof useJarvis>;
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[11px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-1 w-full rounded-md border border-border bg-secondary/60 px-3 py-2 font-display text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+      />
+    </label>
+  );
+}
+
+const fmtTime = (s: number) =>
+  `${String(Math.floor(s / 3600)).padStart(2, "0")}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+
+export function ControlPanel({ engine, selectedCount }: { engine: Engine; selectedCount: number }) {
+  const [amount, setAmount] = useState(500);
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <section className="hud-panel p-5">
+        <h2 className="text-sm tracking-widest text-primary">AUTOMAÇÃO</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {selectedCount} moeda(s) selecionada(s) para análise.
+        </p>
+
+        <div className="mt-4 flex gap-2">
+          {[5, 12, 24].map((h) => (
+            <button
+              key={h}
+              onClick={() => engine.setDurationHours(h)}
+              className={`flex-1 rounded-md border px-3 py-2 font-display text-xs transition-colors ${
+                engine.durationHours === h
+                  ? "border-primary/70 bg-primary/15 text-primary"
+                  : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {h}H
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-md border border-border bg-secondary/40 p-3 text-center">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
+            Tempo restante
+          </p>
+          <p className="font-display text-2xl text-glow">{fmtTime(engine.remaining)}</p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => (engine.running ? engine.setRunning(false) : engine.start())}
+            disabled={!selectedCount}
+            className="rounded-md bg-primary px-3 py-2 font-display text-xs text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {engine.running ? "PAUSAR" : "ATIVAR IA"}
+          </button>
+          <button
+            onClick={engine.stopAll}
+            className="rounded-md border border-destructive/60 bg-destructive/15 px-3 py-2 font-display text-xs text-destructive transition-colors hover:bg-destructive/25"
+          >
+            PARAGEM DE EMERGÊNCIA
+          </button>
+        </div>
+        {engine.halted && (
+          <p className="mt-3 text-xs text-destructive">
+            Automação desligada. Verifica os limites de risco antes de reativar.
+          </p>
+        )}
+      </section>
+
+      <section className="hud-panel p-5">
+        <h2 className="text-sm tracking-widest text-primary">GESTÃO DE RISCO</h2>
+        <div className="mt-4 space-y-3">
+          <Field
+            label="Investimento mínimo (€)"
+            value={engine.risk.minTrade}
+            onChange={(v) => engine.setRisk({ ...engine.risk, minTrade: v })}
+          />
+          <Field
+            label="Perda máx. por operação (€)"
+            value={engine.risk.maxLossPerTrade}
+            onChange={(v) => engine.setRisk({ ...engine.risk, maxLossPerTrade: v })}
+          />
+          <Field
+            label="Perda máx. diária (€)"
+            value={engine.risk.maxLossPerDay}
+            onChange={(v) => engine.setRisk({ ...engine.risk, maxLossPerDay: v })}
+          />
+        </div>
+      </section>
+
+      <section className="hud-panel p-5">
+        <h2 className="text-sm tracking-widest text-primary">CARTEIRA (SIMULAÇÃO)</h2>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="rounded-md border border-border bg-secondary/40 p-3">
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Disponível</p>
+            <p className="font-display text-lg">{eur(engine.available)}</p>
+          </div>
+          <div className="rounded-md border border-border bg-secondary/40 p-3">
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Investido</p>
+            <p className="font-display text-lg text-glow">{eur(engine.invested)}</p>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Field label="Montante (€)" value={amount} onChange={setAmount} />
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => engine.transfer(amount, true)}
+            className="rounded-md border border-primary/50 bg-primary/10 px-3 py-2 font-display text-xs text-primary hover:bg-primary/20"
+          >
+            PARA INVESTIMENTO
+          </button>
+          <button
+            onClick={() => engine.transfer(amount, false)}
+            className="rounded-md border border-border bg-secondary/60 px-3 py-2 font-display text-xs hover:bg-secondary"
+          >
+            PARA DISPONÍVEL
+          </button>
+          <button
+            onClick={() => engine.deposit(amount)}
+            className="rounded-md border border-success/50 bg-success/10 px-3 py-2 font-display text-xs text-success hover:bg-success/20"
+          >
+            DEPOSITAR
+          </button>
+          <button
+            onClick={() => engine.transfer(0, false)}
+            className="rounded-md border border-border bg-secondary/40 px-3 py-2 font-display text-xs text-muted-foreground"
+            title="Disponível na próxima fase"
+          >
+            LEVANTAR
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
