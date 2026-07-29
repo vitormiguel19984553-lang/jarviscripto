@@ -14,7 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bot_settings: {
+        Row: {
+          duration_hours: number
+          max_loss_day: number
+          max_loss_trade: number
+          min_trade: number
+          selected_coins: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          duration_hours?: number
+          max_loss_day?: number
+          max_loss_trade?: number
+          min_trade?: number
+          selected_coins?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          duration_hours?: number
+          max_loss_day?: number
+          max_loss_trade?: number
+          min_trade?: number
+          selected_coins?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      trades: {
+        Row: {
+          action: string
+          amount: number
+          confidence: number
+          created_at: string
+          id: string
+          pnl: number
+          reason: string
+          symbol: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          amount: number
+          confidence: number
+          created_at?: string
+          id?: string
+          pnl: number
+          reason: string
+          symbol: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          amount?: number
+          confidence?: number
+          created_at?: string
+          id?: string
+          pnl?: number
+          reason?: string
+          symbol?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          available: number
+          invested: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          available?: number
+          invested?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          available?: number
+          invested?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
