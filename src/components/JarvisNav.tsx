@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 const items = [
   { to: "/dashboard", label: "PAINEL" },
+  { to: "/chat", label: "JARVIS IA" },
   { to: "/relatorios", label: "RELATÓRIOS" },
   { to: "/backtest", label: "BACKTEST" },
   { to: "/planos", label: "PLANOS" },
