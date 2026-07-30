@@ -45,12 +45,20 @@ function Landing() {
             Assistente de investimento em criptomoedas com IA · modo simulação
           </p>
         </div>
-        <Link
-          to={signedIn ? "/dashboard" : "/auth"}
-          className="rounded-md bg-primary px-4 py-2 font-display text-xs text-primary-foreground"
-        >
-          {signedIn ? "ABRIR PAINEL" : "ENTRAR / CRIAR CONTA"}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/planos"
+            className="rounded-md border border-border bg-secondary/60 px-4 py-2 font-display text-xs tracking-widest hover:bg-secondary"
+          >
+            PLANOS
+          </Link>
+          <Link
+            to={signedIn ? "/dashboard" : "/auth"}
+            className="rounded-md bg-primary px-4 py-2 font-display text-xs text-primary-foreground"
+          >
+            {signedIn ? "ABRIR PAINEL" : "ENTRAR / CRIAR CONTA"}
+          </Link>
+        </div>
       </header>
 
       <p className="mt-3 text-xs text-muted-foreground">
