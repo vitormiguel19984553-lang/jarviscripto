@@ -79,28 +79,43 @@ export type Database = {
       }
       bot_settings: {
         Row: {
+          auto_run: boolean
+          day_loss: number
+          day_loss_date: string
           duration_hours: number
+          last_tick_at: string | null
           max_loss_day: number
           max_loss_trade: number
           min_trade: number
+          run_until: string | null
           selected_coins: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
+          auto_run?: boolean
+          day_loss?: number
+          day_loss_date?: string
           duration_hours?: number
+          last_tick_at?: string | null
           max_loss_day?: number
           max_loss_trade?: number
           min_trade?: number
+          run_until?: string | null
           selected_coins?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
+          auto_run?: boolean
+          day_loss?: number
+          day_loss_date?: string
           duration_hours?: number
+          last_tick_at?: string | null
           max_loss_day?: number
           max_loss_trade?: number
           min_trade?: number
+          run_until?: string | null
           selected_coins?: string[]
           updated_at?: string
           user_id?: string
