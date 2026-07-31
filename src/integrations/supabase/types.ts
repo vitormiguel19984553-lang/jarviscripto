@@ -77,6 +77,24 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_cron_config: {
+        Row: {
+          endpoint: string
+          id: boolean
+          token: string
+        }
+        Insert: {
+          endpoint: string
+          id?: boolean
+          token?: string
+        }
+        Update: {
+          endpoint?: string
+          id?: boolean
+          token?: string
+        }
+        Relationships: []
+      }
       bot_settings: {
         Row: {
           auto_run: boolean
@@ -267,7 +285,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      run_bot_tick: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
