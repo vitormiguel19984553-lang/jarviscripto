@@ -10,15 +10,24 @@ export const Route = createFileRoute("/api/public/bot-tick")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env.BOT_TICK_SECRET;
-        if (!secret) return new Response("Missing BOT_TICK_SECRET", { status: 500 });
-        if (request.headers.get("x-bot-secret") !== secret) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const provided = request.headers.get("x-bot-secret");
+        if (!provided) return new Response("Unauthorized", { status: 401 });
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        let allowed = provided === process.env.BOT_TICK_SECRET;
+        if (!allowed) {
+          const { data: cfg } = await supabaseAdmin
+            .from("bot_cron_config")
+            .select("token")
+            .maybeSingle();
+          allowed = !!cfg?.token && provided === cfg.token;
+        }
+        if (!allowed) return new Response("Unauthorized", { status: 401 });
+
         const nowIso = new Date().toISOString();
         const today = nowIso.slice(0, 10);
+
 
         const { data: rows, error } = await supabaseAdmin
           .from("bot_settings")
