@@ -77,30 +77,63 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_cron_config: {
+        Row: {
+          endpoint: string
+          id: boolean
+          token: string
+        }
+        Insert: {
+          endpoint: string
+          id?: boolean
+          token?: string
+        }
+        Update: {
+          endpoint?: string
+          id?: boolean
+          token?: string
+        }
+        Relationships: []
+      }
       bot_settings: {
         Row: {
+          auto_run: boolean
+          day_loss: number
+          day_loss_date: string
           duration_hours: number
+          last_tick_at: string | null
           max_loss_day: number
           max_loss_trade: number
           min_trade: number
+          run_until: string | null
           selected_coins: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
+          auto_run?: boolean
+          day_loss?: number
+          day_loss_date?: string
           duration_hours?: number
+          last_tick_at?: string | null
           max_loss_day?: number
           max_loss_trade?: number
           min_trade?: number
+          run_until?: string | null
           selected_coins?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
+          auto_run?: boolean
+          day_loss?: number
+          day_loss_date?: string
           duration_hours?: number
+          last_tick_at?: string | null
           max_loss_day?: number
           max_loss_trade?: number
           min_trade?: number
+          run_until?: string | null
           selected_coins?: string[]
           updated_at?: string
           user_id?: string
@@ -252,7 +285,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      run_bot_tick: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
