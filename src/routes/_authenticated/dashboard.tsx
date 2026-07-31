@@ -7,6 +7,7 @@ import { ControlPanel } from "@/components/ControlPanel";
 import { LogsPanel } from "@/components/LogsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { JarvisNav } from "@/components/JarvisNav";
+import { ServerBotPanel } from "@/components/ServerBotPanel";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -101,6 +102,10 @@ function Dashboard() {
 
       <div className="mt-6">
         <ControlPanel engine={engine} selectedCount={engine.selected.length} />
+      </div>
+
+      <div className="mt-6">
+        <ServerBotPanel userId={user.id} />
       </div>
 
       <div className="mt-6">
