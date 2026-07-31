@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Coin, analyse } from "@/lib/market";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  createAlert,
+  defaultAlertSettings,
+  loadAlertSettings,
+  type AlertSettings,
+} from "@/lib/alerts";
+
 
 export type TradeLog = {
   id: string;
