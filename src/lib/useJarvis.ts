@@ -46,9 +46,23 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const coinsRef = useRef(coins);
   const selRef = useRef(selected);
   const riskRef = useRef(risk);
+  const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
+
+  useEffect(() => {
+    let active = true;
+    loadAlertSettings(userId)
+      .then((s) => {
+        if (active) alertsRef.current = s;
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
 
   // Carregar carteira, definições e histórico da Cloud
   useEffect(() => {
