@@ -216,11 +216,28 @@ export function useJarvis(userId: string, coins: Coin[]) {
       if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
         setRunning(false);
         setHalted(true);
+        if (alertsRef.current.on_risk_halt) {
+          void createAlert({
+            userId,
+            kind: "risk_halt",
+            title: "Automação parada — limite diário atingido",
+            body: `A perda acumulada aproximou-se do limite de ${r.maxLossPerDay}€ por dia. O Jarvis desligou a automação por segurança.`,
+          }).catch(() => undefined);
+        }
         return;
       }
       if (pnl < 0) dayLoss.current += Math.abs(pnl);
 
       const action = signal.action === "COMPRAR" ? ("COMPRA" as const) : ("VENDA" as const);
+      if (alertsRef.current.on_trade && Math.abs(pnl) >= alertsRef.current.min_pnl) {
+        void createAlert({
+          userId,
+          kind: "trade",
+          title: `${action} ${coin.symbol.toUpperCase()} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
+          body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${signal.reason}`,
+        }).catch(() => undefined);
+      }
+
       const { data } = await supabase
         .from("trades")
         .insert({
