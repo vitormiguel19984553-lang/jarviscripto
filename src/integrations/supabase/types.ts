@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_settings: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          min_pnl: number
+          on_risk_halt: boolean
+          on_trade: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          min_pnl?: number
+          on_risk_halt?: boolean
+          on_trade?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          min_pnl?: number
+          on_risk_halt?: boolean
+          on_trade?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      alerts: {
+        Row: {
+          body: string
+          created_at: string
+          emailed: boolean
+          id: string
+          kind: string
+          read: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          emailed?: boolean
+          id?: string
+          kind: string
+          read?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          emailed?: boolean
+          id?: string
+          kind?: string
+          read?: boolean
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bot_settings: {
         Row: {
           duration_hours: number

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Coin, analyse } from "@/lib/market";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  createAlert,
+  defaultAlertSettings,
+  loadAlertSettings,
+  type AlertSettings,
+} from "@/lib/alerts";
+
 
 export type TradeLog = {
   id: string;
@@ -39,9 +46,23 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const coinsRef = useRef(coins);
   const selRef = useRef(selected);
   const riskRef = useRef(risk);
+  const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
+
+  useEffect(() => {
+    let active = true;
+    loadAlertSettings(userId)
+      .then((s) => {
+        if (active) alertsRef.current = s;
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
 
   // Carregar carteira, definições e histórico da Cloud
   useEffect(() => {
@@ -195,11 +216,28 @@ export function useJarvis(userId: string, coins: Coin[]) {
       if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
         setRunning(false);
         setHalted(true);
+        if (alertsRef.current.on_risk_halt) {
+          void createAlert({
+            userId,
+            kind: "risk_halt",
+            title: "Automação parada — limite diário atingido",
+            body: `A perda acumulada aproximou-se do limite de ${r.maxLossPerDay}€ por dia. O Jarvis desligou a automação por segurança.`,
+          }).catch(() => undefined);
+        }
         return;
       }
       if (pnl < 0) dayLoss.current += Math.abs(pnl);
 
       const action = signal.action === "COMPRAR" ? ("COMPRA" as const) : ("VENDA" as const);
+      if (alertsRef.current.on_trade && Math.abs(pnl) >= alertsRef.current.min_pnl) {
+        void createAlert({
+          userId,
+          kind: "trade",
+          title: `${action} ${coin.symbol.toUpperCase()} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
+          body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${signal.reason}`,
+        }).catch(() => undefined);
+      }
+
       const { data } = await supabase
         .from("trades")
         .insert({

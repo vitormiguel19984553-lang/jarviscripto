@@ -4,9 +4,11 @@ const items = [
   { to: "/dashboard", label: "PAINEL" },
   { to: "/chat", label: "JARVIS IA" },
   { to: "/relatorios", label: "RELATÓRIOS" },
+  { to: "/alertas", label: "ALERTAS" },
   { to: "/backtest", label: "BACKTEST" },
   { to: "/planos", label: "PLANOS" },
 ] as const;
+
 
 export function JarvisNav() {
   return (
