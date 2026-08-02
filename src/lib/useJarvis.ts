@@ -7,6 +7,17 @@ import {
   loadAlertSettings,
   type AlertSettings,
 } from "@/lib/alerts";
+import {
+  defaultStat,
+  defaultStrategy,
+  loadStrategy,
+  loadSymbolStats,
+  recordOutcome,
+  type StrategyState,
+  type SymbolStat,
+} from "@/lib/strategy";
+import { sizeForWeight, thresholdForSymbol } from "@/lib/learning";
+
 
 
 export type TradeLog = {
