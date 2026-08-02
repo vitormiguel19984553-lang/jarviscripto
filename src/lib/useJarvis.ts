@@ -236,11 +236,19 @@ export function useJarvis(userId: string, coins: Coin[]) {
       const signal = analyse(coin);
       if (signal.action === "AGUARDAR") return;
 
+      const symbol = coin.symbol.toUpperCase();
+      const st = strategyRef.current;
+      const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
+      // A IA só executa se o sinal superar o limite aprendido para esta moeda.
+      if (signal.confidence < thresholdForSymbol(st.min_confidence, stat.weight)) return;
+
       const r = riskRef.current;
-      const amount = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
+      const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
+      const amount = sizeForWeight(base, stat.weight);
       const win = Math.random() * 100 < signal.confidence;
       const raw = win
         ? amount * (0.004 + Math.random() * 0.03)
+
         : -amount * (0.004 + Math.random() * 0.03);
       const pnl = Number(Math.max(-r.maxLossPerTrade, raw).toFixed(2));
 
