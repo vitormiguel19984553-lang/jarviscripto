@@ -223,6 +223,84 @@ export type Database = {
         }
         Relationships: []
       }
+      strategy_state: {
+        Row: {
+          created_at: string
+          id: string
+          last_adjust_at: string | null
+          losses: number
+          min_confidence: number
+          sharpe: number
+          total_pnl: number
+          trades: number
+          updated_at: string
+          user_id: string
+          wins: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_adjust_at?: string | null
+          losses?: number
+          min_confidence?: number
+          sharpe?: number
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id: string
+          wins?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_adjust_at?: string | null
+          losses?: number
+          min_confidence?: number
+          sharpe?: number
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      strategy_symbol_stats: {
+        Row: {
+          created_at: string
+          id: string
+          symbol: string
+          total_pnl: number
+          trades: number
+          updated_at: string
+          user_id: string
+          weight: number
+          wins: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          symbol: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id: string
+          weight?: number
+          wins?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          symbol?: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id?: string
+          weight?: number
+          wins?: number
+        }
+        Relationships: []
+      }
       trades: {
         Row: {
           action: string
