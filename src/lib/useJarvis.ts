@@ -128,7 +128,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
         await supabase.from("bot_settings").insert({ user_id: userId });
       }
 
+      pnlHistoryRef.current = (trades.data ?? []).map((t) => Number(t.pnl));
+
       setLogs(
+
         (trades.data ?? []).map((t) => ({
           id: t.id,
           time: new Date(t.created_at),
