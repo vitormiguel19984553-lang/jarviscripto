@@ -12,7 +12,7 @@ const items = [
 
 export function JarvisNav() {
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="-mx-1 flex w-full items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] sm:w-auto sm:overflow-visible sm:pb-0">
       {items.map((i) => (
         <Link
           key={i.to}
