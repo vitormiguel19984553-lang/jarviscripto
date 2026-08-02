@@ -111,6 +111,11 @@ function Dashboard() {
       </div>
 
       <div className="mt-6">
+        <LearningPanel strategy={engine.strategy} stats={engine.symbolStats} />
+      </div>
+
+
+      <div className="mt-6">
         <LogsPanel logs={engine.logs} />
       </div>
 
