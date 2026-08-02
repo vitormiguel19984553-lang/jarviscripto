@@ -1,5 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { analyse, fetchMarkets, type Coin } from "@/lib/market";
+import {
+  nextMinConfidence,
+  nextWeight,
+  sharpeRatio,
+  sizeForWeight,
+  thresholdForSymbol,
+} from "@/lib/learning";
 
 /**
  * Executa um "tick" da automação no servidor para todos os utilizadores com o
@@ -61,12 +68,51 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             continue;
           }
 
+          const symbol = coin.symbol.toUpperCase();
+
+          // Estado de auto-aprendizagem deste utilizador
+          const [{ data: strat }, { data: stat }] = await Promise.all([
+            supabaseAdmin
+              .from("strategy_state")
+              .select("min_confidence,trades,wins,losses,total_pnl,sharpe,last_adjust_at")
+              .eq("user_id", s.user_id)
+              .maybeSingle(),
+            supabaseAdmin
+              .from("strategy_symbol_stats")
+              .select("trades,wins,total_pnl,weight")
+              .eq("user_id", s.user_id)
+              .eq("symbol", symbol)
+              .maybeSingle(),
+          ]);
+          const learn = {
+            min_confidence: Number(strat?.min_confidence ?? 55),
+            trades: strat?.trades ?? 0,
+            wins: strat?.wins ?? 0,
+            losses: strat?.losses ?? 0,
+            total_pnl: Number(strat?.total_pnl ?? 0),
+          };
+          const sym = {
+            trades: stat?.trades ?? 0,
+            wins: stat?.wins ?? 0,
+            total_pnl: Number(stat?.total_pnl ?? 0),
+            weight: Number(stat?.weight ?? 1),
+          };
+
+          if (signal.confidence < thresholdForSymbol(learn.min_confidence, sym.weight)) {
+            await supabaseAdmin
+              .from("bot_settings")
+              .update({ last_tick_at: nowIso })
+              .eq("user_id", s.user_id);
+            continue;
+          }
+
           const minTrade = Number(s.min_trade);
           const maxLossTrade = Number(s.max_loss_trade);
           const maxLossDay = Number(s.max_loss_day);
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
-          const amount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
+          const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
+          const amount = sizeForWeight(baseAmount, sym.weight);
           const win = Math.random() * 100 < signal.confidence;
           const raw = win
             ? amount * (0.004 + Math.random() * 0.03)
@@ -100,7 +146,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           await supabaseAdmin.from("trades").insert({
             user_id: s.user_id,
-            symbol: coin.symbol.toUpperCase(),
+            symbol,
             action,
             amount,
             pnl,
@@ -132,11 +178,56 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             })
             .eq("user_id", s.user_id);
 
+          // Auto-aprendizagem: registar resultado e reajustar a estratégia
+          const { data: recent } = await supabaseAdmin
+            .from("trades")
+            .select("pnl")
+            .eq("user_id", s.user_id)
+            .order("created_at", { ascending: false })
+            .limit(60);
+          const sharpe = sharpeRatio((recent ?? []).map((t) => Number(t.pnl)));
+          const lTrades = learn.trades + 1;
+          const lWins = learn.wins + (pnl > 0 ? 1 : 0);
+          const minConfidence = nextMinConfidence(learn.min_confidence, {
+            trades: lTrades,
+            wins: lWins,
+            sharpe,
+          });
+          await Promise.all([
+            supabaseAdmin.from("strategy_state").upsert(
+              {
+                user_id: s.user_id,
+                min_confidence: minConfidence,
+                trades: lTrades,
+                wins: lWins,
+                losses: learn.losses + (pnl <= 0 ? 1 : 0),
+                total_pnl: Number((learn.total_pnl + pnl).toFixed(2)),
+                sharpe,
+                last_adjust_at:
+                  minConfidence !== learn.min_confidence ? nowIso : (strat?.last_adjust_at ?? null),
+                updated_at: nowIso,
+              },
+              { onConflict: "user_id" },
+            ),
+            supabaseAdmin.from("strategy_symbol_stats").upsert(
+              {
+                user_id: s.user_id,
+                symbol,
+                trades: sym.trades + 1,
+                wins: sym.wins + (pnl > 0 ? 1 : 0),
+                total_pnl: Number((sym.total_pnl + pnl).toFixed(2)),
+                weight: nextWeight(sym.weight, pnl),
+                updated_at: nowIso,
+              },
+              { onConflict: "user_id,symbol" },
+            ),
+          ]);
+
           if (prefs?.on_trade !== false && Math.abs(pnl) >= Number(prefs?.min_pnl ?? 5)) {
             await supabaseAdmin.from("alerts").insert({
               user_id: s.user_id,
               kind: "trade",
-              title: `${action} ${coin.symbol.toUpperCase()} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€ (servidor)`,
+              title: `${action} ${symbol} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€ (servidor)`,
               body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${signal.reason}`,
             });
           }

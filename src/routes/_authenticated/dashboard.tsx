@@ -8,6 +8,8 @@ import { LogsPanel } from "@/components/LogsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { JarvisNav } from "@/components/JarvisNav";
 import { ServerBotPanel } from "@/components/ServerBotPanel";
+import { LearningPanel } from "@/components/LearningPanel";
+
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -107,6 +109,11 @@ function Dashboard() {
       <div className="mt-6">
         <ServerBotPanel userId={user.id} />
       </div>
+
+      <div className="mt-6">
+        <LearningPanel strategy={engine.strategy} stats={engine.symbolStats} />
+      </div>
+
 
       <div className="mt-6">
         <LogsPanel logs={engine.logs} />

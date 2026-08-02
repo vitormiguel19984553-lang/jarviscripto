@@ -7,7 +7,7 @@ export const Route = createFileRoute("/planos")({
       {
         name: "description",
         content:
-          "Compara os planos do Cripto Jarvis: Explorador gratuito, Pro com automação contínua e backtesting avançado, e Elite com relatórios completos e prioridade da IA.",
+          "Compara os planos do Cripto Jarvis: Normal gratuito, Plus com automação contínua, Pro Max com IA avançada e Enterprise com suporte dedicado.",
       },
       { property: "og:title", content: "Planos e Preços — Cripto Jarvis" },
       {
@@ -33,11 +33,11 @@ type Plan = {
 
 const plans: Plan[] = [
   {
-    id: "explorador",
-    name: "EXPLORADOR",
+    id: "normal",
+    name: "NORMAL",
     price: "0 €",
     period: "para sempre",
-    tagline: "Conhece a IA sem compromisso.",
+    tagline: "Análises básicas e funcionalidades essenciais.",
     features: [
       "Sinais da IA em 4 moedas",
       "Carteira simulada de 1 000 €",
@@ -47,11 +47,11 @@ const plans: Plan[] = [
     ],
   },
   {
-    id: "pro",
-    name: "PRO",
+    id: "plus",
+    name: "PLUS",
     price: "12 €",
     period: "por mês",
-    tagline: "Para quem quer testar estratégias a sério.",
+    tagline: "Análises mais detalhadas e mais moedas disponíveis.",
     highlight: true,
     features: [
       "Sinais da IA em todas as moedas seguidas",
@@ -63,18 +63,33 @@ const plans: Plan[] = [
     ],
   },
   {
-    id: "elite",
-    name: "ELITE",
+    id: "pro-max",
+    name: "PRO MAX",
     price: "29 €",
     period: "por mês",
-    tagline: "Máximo controlo e análise avançada.",
+    tagline: "Análises avançadas da IA e risco afinado ao detalhe.",
     features: [
-      "Tudo o que o Pro inclui",
-      "Várias carteiras em paralelo",
-      "Perfis de risco personalizados",
+      "Tudo o que o Plus inclui",
+      "Auto-aprendizagem com índice de Sharpe",
+      "Ajustes refinados de risco por moeda",
+      "Prioridade na execução das ordens",
       "Exportação de relatórios em CSV",
       "Alertas por email em cada operação",
-      "Prioridade nos pedidos à IA",
+    ],
+  },
+  {
+    id: "enterprise",
+    name: "ENTERPRISE",
+    price: "Sob consulta",
+    period: "faturação anual",
+    tagline: "Tudo desbloqueado, com suporte dedicado.",
+    features: [
+      "Todas as funcionalidades desbloqueadas",
+      "Várias carteiras e equipas em paralelo",
+      "Personalização avançada de estratégias",
+      "Suporte dedicado com gestor de conta",
+      "Acesso antecipado ao modo corretora real",
+      "Integração com a aplicação iajarvis",
     ],
   },
 ];
@@ -97,7 +112,7 @@ function Planos() {
         </Link>
       </header>
 
-      <section className="mt-8 grid gap-5 lg:grid-cols-3">
+      <section className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {plans.map((p) => (
           <article
             key={p.id}
@@ -133,7 +148,7 @@ function Planos() {
                   : "border border-border bg-secondary/60"
               }`}
             >
-              {p.price === "0 €" ? "PLANO ATUAL" : "EM BREVE"}
+              {p.price === "0 €" ? "PLANO ATUAL" : p.id === "enterprise" ? "FALAR CONNOSCO" : "EM BREVE"}
             </button>
           </article>
         ))}

@@ -7,6 +7,17 @@ import {
   loadAlertSettings,
   type AlertSettings,
 } from "@/lib/alerts";
+import {
+  defaultStat,
+  defaultStrategy,
+  loadStrategy,
+  loadSymbolStats,
+  recordOutcome,
+  type StrategyState,
+  type SymbolStat,
+} from "@/lib/strategy";
+import { sizeForWeight, thresholdForSymbol } from "@/lib/learning";
+
 
 
 export type TradeLog = {
@@ -41,15 +52,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
   });
   const [halted, setHalted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [strategy, setStrategy] = useState<StrategyState>(defaultStrategy);
+  const [symbolStats, setSymbolStats] = useState<SymbolStat[]>([]);
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
   const selRef = useRef(selected);
   const riskRef = useRef(risk);
   const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
+  const strategyRef = useRef<StrategyState>(defaultStrategy);
+  const statsRef = useRef<Map<string, SymbolStat>>(new Map());
+  const pnlHistoryRef = useRef<number[]>([]);
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
+
 
   useEffect(() => {
     let active = true;
@@ -58,10 +75,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
         if (active) alertsRef.current = s;
       })
       .catch(() => undefined);
+    Promise.all([loadStrategy(userId), loadSymbolStats(userId)])
+      .then(([st, stats]) => {
+        if (!active) return;
+        strategyRef.current = st;
+        setStrategy(st);
+        const map = new Map(stats.map((s) => [s.symbol, s]));
+        statsRef.current = map;
+        setSymbolStats(stats);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [userId]);
+
 
 
   // Carregar carteira, definições e histórico da Cloud
@@ -100,7 +128,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
         await supabase.from("bot_settings").insert({ user_id: userId });
       }
 
+      pnlHistoryRef.current = (trades.data ?? []).map((t) => Number(t.pnl));
+
       setLogs(
+
         (trades.data ?? []).map((t) => ({
           id: t.id,
           time: new Date(t.created_at),
@@ -205,11 +236,19 @@ export function useJarvis(userId: string, coins: Coin[]) {
       const signal = analyse(coin);
       if (signal.action === "AGUARDAR") return;
 
+      const symbol = coin.symbol.toUpperCase();
+      const st = strategyRef.current;
+      const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
+      // A IA só executa se o sinal superar o limite aprendido para esta moeda.
+      if (signal.confidence < thresholdForSymbol(st.min_confidence, stat.weight)) return;
+
       const r = riskRef.current;
-      const amount = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
+      const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
+      const amount = sizeForWeight(base, stat.weight);
       const win = Math.random() * 100 < signal.confidence;
       const raw = win
         ? amount * (0.004 + Math.random() * 0.03)
+
         : -amount * (0.004 + Math.random() * 0.03);
       const pnl = Number(Math.max(-r.maxLossPerTrade, raw).toFixed(2));
 
@@ -278,6 +317,26 @@ export function useJarvis(userId: string, coins: Coin[]) {
           ].slice(0, 100),
         );
       }
+
+      // Auto-aprendizagem: registar resultado e reajustar a estratégia.
+      pnlHistoryRef.current = [pnl, ...pnlHistoryRef.current].slice(0, 200);
+      try {
+        const res = await recordOutcome({
+          userId,
+          symbol,
+          pnl,
+          recentPnls: pnlHistoryRef.current,
+          state: strategyRef.current,
+          stat,
+        });
+        strategyRef.current = res.state;
+        statsRef.current.set(symbol, res.stat);
+        setStrategy(res.state);
+        setSymbolStats([...statsRef.current.values()]);
+      } catch {
+        /* aprendizagem não bloqueia a operação */
+      }
+
     }, 4000);
     return () => clearInterval(engine);
   }, [running, userId, persistWallet]);
@@ -325,5 +384,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     stopAll,
     transfer,
     deposit,
+    strategy,
+    symbolStats,
+
   };
 }
