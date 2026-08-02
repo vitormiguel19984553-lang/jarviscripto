@@ -52,15 +52,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
   });
   const [halted, setHalted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [strategy, setStrategy] = useState<StrategyState>(defaultStrategy);
+  const [symbolStats, setSymbolStats] = useState<SymbolStat[]>([]);
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
   const selRef = useRef(selected);
   const riskRef = useRef(risk);
   const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
+  const strategyRef = useRef<StrategyState>(defaultStrategy);
+  const statsRef = useRef<Map<string, SymbolStat>>(new Map());
+  const pnlHistoryRef = useRef<number[]>([]);
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
+
 
   useEffect(() => {
     let active = true;
