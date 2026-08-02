@@ -76,9 +76,9 @@ export async function recordOutcome(opts: {
   pnl: number;
   recentPnls: number[];
   state: StrategyState;
-  weight: number;
-}): Promise<{ state: StrategyState; weight: number }> {
-  const { userId, symbol, pnl, recentPnls, state } = opts;
+  stat: SymbolStat;
+}): Promise<{ state: StrategyState; stat: SymbolStat }> {
+  const { userId, symbol, pnl, recentPnls, state, stat } = opts;
   const trades = state.trades + 1;
   const wins = state.wins + (pnl > 0 ? 1 : 0);
   const losses = state.losses + (pnl <= 0 ? 1 : 0);
@@ -96,34 +96,31 @@ export async function recordOutcome(opts: {
     last_adjust_at: minConfidence !== state.min_confidence ? nowIso : state.last_adjust_at,
   };
 
-  await supabase
-    .from("strategy_state")
-    .upsert({ user_id: userId, ...next, updated_at: nowIso }, { onConflict: "user_id" });
+  const nextStat: SymbolStat = {
+    symbol,
+    trades: stat.trades + 1,
+    wins: stat.wins + (pnl > 0 ? 1 : 0),
+    total_pnl: Number((stat.total_pnl + pnl).toFixed(2)),
+    weight: nextWeight(stat.weight, pnl),
+  };
 
-  const weight = nextWeight(opts.weight, pnl);
-  await supabase.from("strategy_symbol_stats").upsert(
-    {
-      user_id: userId,
-      symbol,
-      weight,
-      trades: 1,
-      wins: pnl > 0 ? 1 : 0,
-      total_pnl: pnl,
-      updated_at: nowIso,
-    },
-    { onConflict: "user_id,symbol", ignoreDuplicates: false },
-  );
+  await Promise.all([
+    supabase
+      .from("strategy_state")
+      .upsert({ user_id: userId, ...next, updated_at: nowIso }, { onConflict: "user_id" }),
+    supabase
+      .from("strategy_symbol_stats")
+      .upsert({ user_id: userId, ...nextStat, updated_at: nowIso }, { onConflict: "user_id,symbol" }),
+  ]);
 
-  // Os contadores por moeda são acumulativos: soma-se o valor anterior.
-  const { data: existing } = await supabase
-    .from("strategy_symbol_stats")
-    .select("trades,wins,total_pnl")
-    .eq("user_id", userId)
-    .eq("symbol", symbol)
-    .maybeSingle();
-  if (existing) {
-    void existing; // já atualizado acima com valores desta operação
-  }
-
-  return { state: next, weight };
+  return { state: next, stat: nextStat };
 }
+
+export const defaultStat = (symbol: string): SymbolStat => ({
+  symbol,
+  trades: 0,
+  wins: 0,
+  total_pnl: 0,
+  weight: 1,
+});
+
