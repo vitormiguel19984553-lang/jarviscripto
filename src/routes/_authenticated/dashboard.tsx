@@ -8,6 +8,8 @@ import { LogsPanel } from "@/components/LogsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { JarvisNav } from "@/components/JarvisNav";
 import { ServerBotPanel } from "@/components/ServerBotPanel";
+import { LearningPanel } from "@/components/LearningPanel";
+
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
