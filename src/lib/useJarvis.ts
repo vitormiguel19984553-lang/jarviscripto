@@ -384,5 +384,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     stopAll,
     transfer,
     deposit,
+    strategy,
+    symbolStats,
+
   };
 }
