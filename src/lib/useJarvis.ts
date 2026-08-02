@@ -69,10 +69,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
         if (active) alertsRef.current = s;
       })
       .catch(() => undefined);
+    Promise.all([loadStrategy(userId), loadSymbolStats(userId)])
+      .then(([st, stats]) => {
+        if (!active) return;
+        strategyRef.current = st;
+        setStrategy(st);
+        const map = new Map(stats.map((s) => [s.symbol, s]));
+        statsRef.current = map;
+        setSymbolStats(stats);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [userId]);
+
 
 
   // Carregar carteira, definições e histórico da Cloud
