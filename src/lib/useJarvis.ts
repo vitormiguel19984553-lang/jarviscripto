@@ -317,6 +317,26 @@ export function useJarvis(userId: string, coins: Coin[]) {
           ].slice(0, 100),
         );
       }
+
+      // Auto-aprendizagem: registar resultado e reajustar a estratégia.
+      pnlHistoryRef.current = [pnl, ...pnlHistoryRef.current].slice(0, 200);
+      try {
+        const res = await recordOutcome({
+          userId,
+          symbol,
+          pnl,
+          recentPnls: pnlHistoryRef.current,
+          state: strategyRef.current,
+          stat,
+        });
+        strategyRef.current = res.state;
+        statsRef.current.set(symbol, res.stat);
+        setStrategy(res.state);
+        setSymbolStats([...statsRef.current.values()]);
+      } catch {
+        /* aprendizagem não bloqueia a operação */
+      }
+
     }, 4000);
     return () => clearInterval(engine);
   }, [running, userId, persistWallet]);
