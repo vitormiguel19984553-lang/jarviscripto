@@ -253,6 +253,20 @@ function AdminPage() {
                       }`}
                     />
                   </td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => active.mutate({ userId: u.id, isActive: !u.isActive })}
+                      disabled={active.isPending}
+                      className={`rounded-md border px-2 py-1 font-display text-[10px] tracking-widest disabled:opacity-50 ${
+                        u.isActive
+                          ? "border-success/50 bg-success/10 text-success"
+                          : "border-destructive/50 bg-destructive/10 text-destructive"
+                      }`}
+                    >
+                      {u.isActive ? "ATIVA" : "DESATIVADA"}
+                    </button>
+                  </td>
+
                 </tr>
               ))}
             </tbody>
