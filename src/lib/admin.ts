@@ -14,9 +14,20 @@ export async function checkIsAdmin(userId: string): Promise<boolean> {
   return Boolean(data);
 }
 
+export type PlanTier = "normal" | "plus" | "pro_max" | "enterprise";
+
+export const planLabels: Record<PlanTier, string> = {
+  normal: "Normal",
+  plus: "Plus",
+  pro_max: "Pro Max",
+  enterprise: "Enterprise",
+};
+
 export type PlatformUser = {
   id: string;
   name: string;
+  plan: PlanTier;
+  isActive: boolean;
   available: number;
   invested: number;
   trades: number;
@@ -28,6 +39,44 @@ export type PlatformUser = {
   isAdmin: boolean;
   createdAt: string;
 };
+
+export type PlatformSettings = {
+  max_loss_trade: number;
+  max_loss_day: number;
+};
+
+export async function loadPlatformSettings(): Promise<PlatformSettings> {
+  const { data, error } = await supabase
+    .from("platform_settings")
+    .select("max_loss_trade,max_loss_day")
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    max_loss_trade: Number(data?.max_loss_trade ?? 50),
+    max_loss_day: Number(data?.max_loss_day ?? 200),
+  };
+}
+
+export async function savePlatformSettings(next: PlatformSettings): Promise<void> {
+  const { error } = await supabase
+    .from("platform_settings")
+    .update({ ...next, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) throw error;
+}
+
+export async function setUserPlan(userId: string, plan: PlanTier): Promise<void> {
+  const { error } = await supabase.from("profiles").update({ plan }).eq("id", userId);
+  if (error) throw error;
+}
+
+export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ is_active: isActive })
+    .eq("id", userId);
+  if (error) throw error;
+}
 
 export type PlatformOverview = {
   users: PlatformUser[];
@@ -55,7 +104,7 @@ export type PlatformOverview = {
 /** Agrega as métricas globais da plataforma (só devolve dados a admins, por RLS). */
 export async function loadPlatformOverview(): Promise<PlatformOverview> {
   const [profiles, wallets, settings, strategies, trades, roles] = await Promise.all([
-    supabase.from("profiles").select("id,display_name,created_at"),
+    supabase.from("profiles").select("id,display_name,created_at,plan,is_active"),
     supabase.from("wallets").select("user_id,available,invested"),
     supabase.from("bot_settings").select("user_id,auto_run"),
     supabase.from("strategy_state").select("user_id,trades,wins,total_pnl,sharpe,min_confidence"),
@@ -81,6 +130,8 @@ export async function loadPlatformOverview(): Promise<PlatformOverview> {
     return {
       id: p.id,
       name: p.display_name ?? "sem nome",
+      plan: (p.plan ?? "normal") as PlanTier,
+      isActive: p.is_active !== false,
       available: Number(w?.available ?? 0),
       invested: Number(w?.invested ?? 0),
       trades: st?.trades ?? 0,

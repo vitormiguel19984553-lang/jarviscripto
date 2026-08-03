@@ -1,7 +1,18 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { checkIsAdmin, loadPlatformOverview } from "@/lib/admin";
+import {
+  checkIsAdmin,
+  loadPlatformOverview,
+  loadPlatformSettings,
+  planLabels,
+  savePlatformSettings,
+  setUserActive,
+  setUserPlan,
+  type PlanTier,
+} from "@/lib/admin";
 import { JarvisNav } from "@/components/JarvisNav";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -49,13 +60,64 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: "
 }
 
 function AdminPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-overview"],
     queryFn: loadPlatformOverview,
     refetchInterval: 30_000,
   });
+  const { data: platform } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: loadPlatformSettings,
+  });
+
+  const [maxTrade, setMaxTrade] = useState("");
+  const [maxDay, setMaxDay] = useState("");
+  useEffect(() => {
+    if (platform) {
+      setMaxTrade(String(platform.max_loss_trade));
+      setMaxDay(String(platform.max_loss_day));
+    }
+  }, [platform]);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
+    void queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+  };
+
+  const limits = useMutation({
+    mutationFn: () =>
+      savePlatformSettings({
+        max_loss_trade: Math.max(1, Number(maxTrade) || 1),
+        max_loss_day: Math.max(1, Number(maxDay) || 1),
+      }),
+    onSuccess: () => {
+      toast.success("Limites globais atualizados");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível guardar os limites"),
+  });
+
+  const plan = useMutation({
+    mutationFn: (v: { userId: string; plan: PlanTier }) => setUserPlan(v.userId, v.plan),
+    onSuccess: () => {
+      toast.success("Plano atualizado");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível alterar o plano"),
+  });
+
+  const active = useMutation({
+    mutationFn: (v: { userId: string; isActive: boolean }) => setUserActive(v.userId, v.isActive),
+    onSuccess: () => {
+      toast.success("Estado da conta atualizado");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível alterar o estado da conta"),
+  });
 
   const t = data?.totals;
+
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -90,12 +152,51 @@ function AdminPage() {
       </section>
 
       <section className="hud-panel mt-6 p-5">
+        <h2 className="mb-3 font-display text-xs tracking-widest text-primary">
+          LIMITES GLOBAIS DE RISCO
+        </h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Teto aplicado a todas as contas: nenhum utilizador pode operar acima destes valores.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs">
+            <span className="mb-1 block text-muted-foreground">Perda máx. por operação (€)</span>
+            <input
+              type="number"
+              min={1}
+              value={maxTrade}
+              onChange={(e) => setMaxTrade(e.target.value)}
+              className="w-36 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <label className="text-xs">
+            <span className="mb-1 block text-muted-foreground">Perda máx. por dia (€)</span>
+            <input
+              type="number"
+              min={1}
+              value={maxDay}
+              onChange={(e) => setMaxDay(e.target.value)}
+              className="w-36 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <button
+            onClick={() => limits.mutate()}
+            disabled={limits.isPending}
+            className="rounded-md border border-primary/50 bg-primary/10 px-4 py-1.5 font-display text-[11px] tracking-widest text-primary hover:bg-primary/20 disabled:opacity-50"
+          >
+            GUARDAR
+          </button>
+        </div>
+      </section>
+
+      <section className="hud-panel mt-6 p-5">
         <h2 className="mb-3 font-display text-xs tracking-widest text-primary">UTILIZADORES</h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-xs">
+          <table className="w-full min-w-[920px] text-left text-xs">
             <thead className="font-display text-[10px] tracking-widest text-muted-foreground">
               <tr>
                 <th className="pb-2">CONTA</th>
+                <th className="pb-2">PLANO</th>
                 <th className="pb-2">SALDO</th>
                 <th className="pb-2">INVESTIDO</th>
                 <th className="pb-2">OPS</th>
@@ -104,6 +205,7 @@ function AdminPage() {
                 <th className="pb-2">CONF. MÍN.</th>
                 <th className="pb-2">RESULTADO</th>
                 <th className="pb-2">BOT</th>
+                <th className="pb-2">CONTA</th>
               </tr>
             </thead>
             <tbody>
@@ -117,6 +219,21 @@ function AdminPage() {
                       </span>
                     )}
                   </td>
+                  <td className="py-2">
+                    <select
+                      value={u.plan}
+                      onChange={(e) =>
+                        plan.mutate({ userId: u.id, plan: e.target.value as PlanTier })
+                      }
+                      className="rounded-md border border-border bg-secondary/50 px-2 py-1 text-xs"
+                    >
+                      {(Object.keys(planLabels) as PlanTier[]).map((p) => (
+                        <option key={p} value={p}>
+                          {planLabels[p]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="py-2">{eur(u.available)}</td>
                   <td className="py-2">{eur(u.invested)}</td>
                   <td className="py-2">{u.trades}</td>
@@ -128,6 +245,7 @@ function AdminPage() {
                   <td className={`py-2 ${u.pnl >= 0 ? "text-success" : "text-destructive"}`}>
                     {eur(u.pnl)}
                   </td>
+
                   <td className="py-2">
                     <span
                       className={`inline-block size-2 rounded-full ${
@@ -135,6 +253,20 @@ function AdminPage() {
                       }`}
                     />
                   </td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => active.mutate({ userId: u.id, isActive: !u.isActive })}
+                      disabled={active.isPending}
+                      className={`rounded-md border px-2 py-1 font-display text-[10px] tracking-widest disabled:opacity-50 ${
+                        u.isActive
+                          ? "border-success/50 bg-success/10 text-success"
+                          : "border-destructive/50 bg-destructive/10 text-destructive"
+                      }`}
+                    >
+                      {u.isActive ? "ATIVA" : "DESATIVADA"}
+                    </button>
+                  </td>
+
                 </tr>
               ))}
             </tbody>

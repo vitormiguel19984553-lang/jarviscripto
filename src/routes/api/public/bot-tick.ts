@@ -44,6 +44,26 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         if (error) return Response.json({ error: error.message }, { status: 500 });
         if (!rows?.length) return Response.json({ processed: 0 });
 
+        // Contas desativadas pelo admin não operam.
+        const { data: profiles } = await supabaseAdmin
+          .from("profiles")
+          .select("id,is_active")
+          .in(
+            "id",
+            rows.map((r) => r.user_id),
+          );
+        const inactive = new Set(
+          (profiles ?? []).filter((p) => p.is_active === false).map((p) => p.id),
+        );
+
+        // Limites globais de risco definidos pelo admin.
+        const { data: platform } = await supabaseAdmin
+          .from("platform_settings")
+          .select("max_loss_trade,max_loss_day")
+          .maybeSingle();
+        const globalMaxLossTrade = Number(platform?.max_loss_trade ?? Number.MAX_SAFE_INTEGER);
+        const globalMaxLossDay = Number(platform?.max_loss_day ?? Number.MAX_SAFE_INTEGER);
+
         let coins: Coin[] = [];
         try {
           coins = await fetchMarkets();
@@ -54,6 +74,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         let processed = 0;
 
         for (const s of rows) {
+          if (inactive.has(s.user_id)) continue;
           const selected: string[] = s.selected_coins ?? [];
           const pool = coins.filter((c) => selected.includes(c.id));
           if (!pool.length) continue;
@@ -107,8 +128,8 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           }
 
           const minTrade = Number(s.min_trade);
-          const maxLossTrade = Number(s.max_loss_trade);
-          const maxLossDay = Number(s.max_loss_day);
+          const maxLossTrade = Math.min(Number(s.max_loss_trade), globalMaxLossTrade);
+          const maxLossDay = Math.min(Number(s.max_loss_day), globalMaxLossDay);
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
           const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
