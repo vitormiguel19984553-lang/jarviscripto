@@ -60,13 +60,64 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: "
 }
 
 function AdminPage() {
+  const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-overview"],
     queryFn: loadPlatformOverview,
     refetchInterval: 30_000,
   });
+  const { data: platform } = useQuery({
+    queryKey: ["platform-settings"],
+    queryFn: loadPlatformSettings,
+  });
+
+  const [maxTrade, setMaxTrade] = useState("");
+  const [maxDay, setMaxDay] = useState("");
+  useEffect(() => {
+    if (platform) {
+      setMaxTrade(String(platform.max_loss_trade));
+      setMaxDay(String(platform.max_loss_day));
+    }
+  }, [platform]);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
+    void queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+  };
+
+  const limits = useMutation({
+    mutationFn: () =>
+      savePlatformSettings({
+        max_loss_trade: Math.max(1, Number(maxTrade) || 1),
+        max_loss_day: Math.max(1, Number(maxDay) || 1),
+      }),
+    onSuccess: () => {
+      toast.success("Limites globais atualizados");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível guardar os limites"),
+  });
+
+  const plan = useMutation({
+    mutationFn: (v: { userId: string; plan: PlanTier }) => setUserPlan(v.userId, v.plan),
+    onSuccess: () => {
+      toast.success("Plano atualizado");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível alterar o plano"),
+  });
+
+  const active = useMutation({
+    mutationFn: (v: { userId: string; isActive: boolean }) => setUserActive(v.userId, v.isActive),
+    onSuccess: () => {
+      toast.success("Estado da conta atualizado");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível alterar o estado da conta"),
+  });
 
   const t = data?.totals;
+
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
