@@ -1,7 +1,18 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { checkIsAdmin, loadPlatformOverview } from "@/lib/admin";
+import {
+  checkIsAdmin,
+  loadPlatformOverview,
+  loadPlatformSettings,
+  planLabels,
+  savePlatformSettings,
+  setUserActive,
+  setUserPlan,
+  type PlanTier,
+} from "@/lib/admin";
 import { JarvisNav } from "@/components/JarvisNav";
 
 export const Route = createFileRoute("/_authenticated/admin")({
