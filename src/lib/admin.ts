@@ -104,7 +104,7 @@ export type PlatformOverview = {
 /** Agrega as métricas globais da plataforma (só devolve dados a admins, por RLS). */
 export async function loadPlatformOverview(): Promise<PlatformOverview> {
   const [profiles, wallets, settings, strategies, trades, roles] = await Promise.all([
-    supabase.from("profiles").select("id,display_name,created_at"),
+    supabase.from("profiles").select("id,display_name,created_at,plan,is_active"),
     supabase.from("wallets").select("user_id,available,invested"),
     supabase.from("bot_settings").select("user_id,auto_run"),
     supabase.from("strategy_state").select("user_id,trades,wins,total_pnl,sharpe,min_confidence"),
