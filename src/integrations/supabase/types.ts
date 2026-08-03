@@ -205,21 +205,51 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_settings: {
+        Row: {
+          created_at: string
+          id: boolean
+          max_loss_day: number
+          max_loss_trade: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: boolean
+          max_loss_day?: number
+          max_loss_trade?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: boolean
+          max_loss_day?: number
+          max_loss_trade?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
           display_name: string | null
           id: string
+          is_active: boolean
+          plan: Database["public"]["Enums"]["plan_tier"]
         }
         Insert: {
           created_at?: string
           display_name?: string | null
           id: string
+          is_active?: boolean
+          plan?: Database["public"]["Enums"]["plan_tier"]
         }
         Update: {
           created_at?: string
           display_name?: string | null
           id?: string
+          is_active?: boolean
+          plan?: Database["public"]["Enums"]["plan_tier"]
         }
         Relationships: []
       }
@@ -398,6 +428,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      plan_tier: "normal" | "plus" | "pro_max" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -526,6 +557,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      plan_tier: ["normal", "plus", "pro_max", "enterprise"],
     },
   },
 } as const
