@@ -130,6 +130,8 @@ export async function loadPlatformOverview(): Promise<PlatformOverview> {
     return {
       id: p.id,
       name: p.display_name ?? "sem nome",
+      plan: (p.plan ?? "normal") as PlanTier,
+      isActive: p.is_active !== false,
       available: Number(w?.available ?? 0),
       invested: Number(w?.invested ?? 0),
       trades: st?.trades ?? 0,
