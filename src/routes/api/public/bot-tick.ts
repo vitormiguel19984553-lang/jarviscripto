@@ -44,6 +44,26 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         if (error) return Response.json({ error: error.message }, { status: 500 });
         if (!rows?.length) return Response.json({ processed: 0 });
 
+        // Contas desativadas pelo admin não operam.
+        const { data: profiles } = await supabaseAdmin
+          .from("profiles")
+          .select("id,is_active")
+          .in(
+            "id",
+            rows.map((r) => r.user_id),
+          );
+        const inactive = new Set(
+          (profiles ?? []).filter((p) => p.is_active === false).map((p) => p.id),
+        );
+
+        // Limites globais de risco definidos pelo admin.
+        const { data: platform } = await supabaseAdmin
+          .from("platform_settings")
+          .select("max_loss_trade,max_loss_day")
+          .maybeSingle();
+        const globalMaxLossTrade = Number(platform?.max_loss_trade ?? Number.MAX_SAFE_INTEGER);
+        const globalMaxLossDay = Number(platform?.max_loss_day ?? Number.MAX_SAFE_INTEGER);
+
         let coins: Coin[] = [];
         try {
           coins = await fetchMarkets();
