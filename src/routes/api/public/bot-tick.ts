@@ -127,8 +127,8 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           }
 
           const minTrade = Number(s.min_trade);
-          const maxLossTrade = Number(s.max_loss_trade);
-          const maxLossDay = Number(s.max_loss_day);
+          const maxLossTrade = Math.min(Number(s.max_loss_trade), globalMaxLossTrade);
+          const maxLossDay = Math.min(Number(s.max_loss_day), globalMaxLossDay);
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
           const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
