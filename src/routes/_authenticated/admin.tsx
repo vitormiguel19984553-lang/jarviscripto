@@ -152,12 +152,51 @@ function AdminPage() {
       </section>
 
       <section className="hud-panel mt-6 p-5">
+        <h2 className="mb-3 font-display text-xs tracking-widest text-primary">
+          LIMITES GLOBAIS DE RISCO
+        </h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Teto aplicado a todas as contas: nenhum utilizador pode operar acima destes valores.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs">
+            <span className="mb-1 block text-muted-foreground">Perda máx. por operação (€)</span>
+            <input
+              type="number"
+              min={1}
+              value={maxTrade}
+              onChange={(e) => setMaxTrade(e.target.value)}
+              className="w-36 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <label className="text-xs">
+            <span className="mb-1 block text-muted-foreground">Perda máx. por dia (€)</span>
+            <input
+              type="number"
+              min={1}
+              value={maxDay}
+              onChange={(e) => setMaxDay(e.target.value)}
+              className="w-36 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-sm"
+            />
+          </label>
+          <button
+            onClick={() => limits.mutate()}
+            disabled={limits.isPending}
+            className="rounded-md border border-primary/50 bg-primary/10 px-4 py-1.5 font-display text-[11px] tracking-widest text-primary hover:bg-primary/20 disabled:opacity-50"
+          >
+            GUARDAR
+          </button>
+        </div>
+      </section>
+
+      <section className="hud-panel mt-6 p-5">
         <h2 className="mb-3 font-display text-xs tracking-widest text-primary">UTILIZADORES</h2>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-xs">
+          <table className="w-full min-w-[920px] text-left text-xs">
             <thead className="font-display text-[10px] tracking-widest text-muted-foreground">
               <tr>
                 <th className="pb-2">CONTA</th>
+                <th className="pb-2">PLANO</th>
                 <th className="pb-2">SALDO</th>
                 <th className="pb-2">INVESTIDO</th>
                 <th className="pb-2">OPS</th>
@@ -166,6 +205,7 @@ function AdminPage() {
                 <th className="pb-2">CONF. MÍN.</th>
                 <th className="pb-2">RESULTADO</th>
                 <th className="pb-2">BOT</th>
+                <th className="pb-2">CONTA</th>
               </tr>
             </thead>
             <tbody>
@@ -179,6 +219,21 @@ function AdminPage() {
                       </span>
                     )}
                   </td>
+                  <td className="py-2">
+                    <select
+                      value={u.plan}
+                      onChange={(e) =>
+                        plan.mutate({ userId: u.id, plan: e.target.value as PlanTier })
+                      }
+                      className="rounded-md border border-border bg-secondary/50 px-2 py-1 text-xs"
+                    >
+                      {(Object.keys(planLabels) as PlanTier[]).map((p) => (
+                        <option key={p} value={p}>
+                          {planLabels[p]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="py-2">{eur(u.available)}</td>
                   <td className="py-2">{eur(u.invested)}</td>
                   <td className="py-2">{u.trades}</td>
@@ -190,6 +245,7 @@ function AdminPage() {
                   <td className={`py-2 ${u.pnl >= 0 ? "text-success" : "text-destructive"}`}>
                     {eur(u.pnl)}
                   </td>
+
                   <td className="py-2">
                     <span
                       className={`inline-block size-2 rounded-full ${
