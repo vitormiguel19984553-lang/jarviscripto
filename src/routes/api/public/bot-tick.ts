@@ -74,6 +74,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         let processed = 0;
 
         for (const s of rows) {
+          if (inactive.has(s.user_id)) continue;
           const selected: string[] = s.selected_coins ?? [];
           const pool = coins.filter((c) => selected.includes(c.id));
           if (!pool.length) continue;
