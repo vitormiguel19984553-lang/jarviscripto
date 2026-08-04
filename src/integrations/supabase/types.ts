@@ -107,6 +107,9 @@ export type Database = {
           min_trade: number
           run_until: string | null
           selected_coins: string[]
+          stop_loss_pct: number
+          take_profit_pct: number
+          trailing_stop_pct: number
           updated_at: string
           user_id: string
         }
@@ -121,6 +124,9 @@ export type Database = {
           min_trade?: number
           run_until?: string | null
           selected_coins?: string[]
+          stop_loss_pct?: number
+          take_profit_pct?: number
+          trailing_stop_pct?: number
           updated_at?: string
           user_id: string
         }
@@ -135,6 +141,9 @@ export type Database = {
           min_trade?: number
           run_until?: string | null
           selected_coins?: string[]
+          stop_loss_pct?: number
+          take_profit_pct?: number
+          trailing_stop_pct?: number
           updated_at?: string
           user_id?: string
         }
@@ -208,6 +217,7 @@ export type Database = {
       platform_settings: {
         Row: {
           created_at: string
+          emergency_stop: boolean
           id: boolean
           max_loss_day: number
           max_loss_trade: number
@@ -215,6 +225,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          emergency_stop?: boolean
           id?: boolean
           max_loss_day?: number
           max_loss_trade?: number
@@ -222,6 +233,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          emergency_stop?: boolean
           id?: boolean
           max_loss_day?: number
           max_loss_trade?: number
