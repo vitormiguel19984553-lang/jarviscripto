@@ -36,6 +36,43 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         const nowIso = new Date().toISOString();
         const today = nowIso.slice(0, 10);
 
+        let coins: Coin[] = [];
+        try {
+          coins = await fetchMarkets();
+        } catch {
+          return Response.json({ error: "market_unavailable" }, { status: 502 });
+        }
+        const priceById = new Map(coins.map((c) => [c.id, c]));
+
+        // ── Alertas de preço da watchlist ───────────────────────────────────
+        let priceAlertsFired = 0;
+        const { data: pAlerts } = await supabaseAdmin
+          .from("price_alerts")
+          .select("id,user_id,symbol,direction,target_price")
+          .eq("active", true);
+        for (const a of pAlerts ?? []) {
+          const coin = priceById.get(a.symbol);
+          if (!coin) continue;
+          const target = Number(a.target_price);
+          const hit =
+            a.direction === "below" ? coin.current_price <= target : coin.current_price >= target;
+          if (!hit) continue;
+          await Promise.all([
+            supabaseAdmin
+              .from("price_alerts")
+              .update({ active: false, last_triggered_at: nowIso })
+              .eq("id", a.id),
+            supabaseAdmin.from("alerts").insert({
+              user_id: a.user_id,
+              kind: "price_alert",
+              title: `${coin.symbol.toUpperCase()} ${a.direction === "below" ? "abaixo" : "acima"} de ${target}€`,
+              body: `O preço de ${coin.name} está em ${coin.current_price.toFixed(4)}€ e cumpriu o teu alerta (${
+                a.direction === "below" ? "descer abaixo" : "subir acima"
+              } de ${target}€).`,
+            }),
+          ]);
+          priceAlertsFired++;
+        }
 
         const { data: rows, error } = await supabaseAdmin
           .from("bot_settings")
@@ -43,7 +80,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           .eq("auto_run", true)
           .gt("run_until", nowIso);
         if (error) return Response.json({ error: error.message }, { status: 500 });
-        if (!rows?.length) return Response.json({ processed: 0 });
+        if (!rows?.length) return Response.json({ processed: 0, priceAlertsFired });
 
         // Contas desativadas pelo admin não operam.
         const { data: profiles } = await supabaseAdmin
