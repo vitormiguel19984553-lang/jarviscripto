@@ -276,7 +276,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
         amount,
         signal.confidence / 100,
         protectionRef.current,
-        Math.max(0.2, Math.min(1.5, coin.price_change_percentage_24h_in_currency ? Math.abs(coin.price_change_percentage_24h_in_currency) / 6 : 0.6)),
+        Math.max(0.2, Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6)),
       );
       const pnl = Number(Math.max(-r.maxLossPerTrade, sim.pnl).toFixed(2));
       const exitReason = `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)`;

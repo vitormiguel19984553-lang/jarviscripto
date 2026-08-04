@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { analyse, fetchMarkets, type Coin } from "@/lib/market";
+import { simulateProtectedTrade, exitLabels } from "@/lib/protection";
 import {
   nextMinConfidence,
   nextWeight,
@@ -59,8 +60,17 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         // Limites globais de risco definidos pelo admin.
         const { data: platform } = await supabaseAdmin
           .from("platform_settings")
-          .select("max_loss_trade,max_loss_day")
+          .select("max_loss_trade,max_loss_day,emergency_stop")
           .maybeSingle();
+
+        // Paragem de emergência global: desliga toda a automação e sai.
+        if (platform?.emergency_stop) {
+          await supabaseAdmin
+            .from("bot_settings")
+            .update({ auto_run: false, last_tick_at: nowIso })
+            .eq("auto_run", true);
+          return Response.json({ processed: 0, emergency_stop: true });
+        }
         const globalMaxLossTrade = Number(platform?.max_loss_trade ?? Number.MAX_SAFE_INTEGER);
         const globalMaxLossDay = Number(platform?.max_loss_day ?? Number.MAX_SAFE_INTEGER);
 
@@ -134,11 +144,18 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
           const amount = sizeForWeight(baseAmount, sym.weight);
-          const win = Math.random() * 100 < signal.confidence;
-          const raw = win
-            ? amount * (0.004 + Math.random() * 0.03)
-            : -amount * (0.004 + Math.random() * 0.03);
-          const pnl = Number(Math.max(-maxLossTrade, raw).toFixed(2));
+          const sim = simulateProtectedTrade(
+            amount,
+            signal.confidence / 100,
+            {
+              takeProfitPct: Number(s.take_profit_pct ?? 2.5),
+              stopLossPct: Number(s.stop_loss_pct ?? 1.5),
+              trailingStopPct: Number(s.trailing_stop_pct ?? 1),
+            },
+            Math.max(0.2, Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6)),
+          );
+          const pnl = Number(Math.max(-maxLossTrade, sim.pnl).toFixed(2));
+          const exitReason = `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)`;
 
           const { data: prefs } = await supabaseAdmin
             .from("alert_settings")
@@ -172,7 +189,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             amount,
             pnl,
             confidence: signal.confidence,
-            reason: signal.reason,
+            reason: exitReason,
           });
 
           const { data: wallet } = await supabaseAdmin
