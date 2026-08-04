@@ -43,17 +43,19 @@ export type PlatformUser = {
 export type PlatformSettings = {
   max_loss_trade: number;
   max_loss_day: number;
+  emergency_stop: boolean;
 };
 
 export async function loadPlatformSettings(): Promise<PlatformSettings> {
   const { data, error } = await supabase
     .from("platform_settings")
-    .select("max_loss_trade,max_loss_day")
+    .select("max_loss_trade,max_loss_day,emergency_stop")
     .maybeSingle();
   if (error) throw error;
   return {
     max_loss_trade: Number(data?.max_loss_trade ?? 50),
     max_loss_day: Number(data?.max_loss_day ?? 200),
+    emergency_stop: Boolean(data?.emergency_stop),
   };
 }
 
@@ -61,6 +63,15 @@ export async function savePlatformSettings(next: PlatformSettings): Promise<void
   const { error } = await supabase
     .from("platform_settings")
     .update({ ...next, updated_at: new Date().toISOString() })
+    .eq("id", true);
+  if (error) throw error;
+}
+
+/** Liga/desliga a paragem de emergência global (trava toda a automação). */
+export async function setEmergencyStop(enabled: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("platform_settings")
+    .update({ emergency_stop: enabled, updated_at: new Date().toISOString() })
     .eq("id", true);
   if (error) throw error;
 }

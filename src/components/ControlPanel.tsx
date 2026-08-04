@@ -33,7 +33,7 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
   const [amount, setAmount] = useState(500);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <section className="hud-panel p-5">
         <h2 className="text-sm tracking-widest text-primary">AUTOMAÇÃO</h2>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -102,6 +102,30 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
             label="Perda máx. diária (€)"
             value={engine.risk.maxLossPerDay}
             onChange={(v) => engine.setRisk({ ...engine.risk, maxLossPerDay: v })}
+          />
+        </div>
+      </section>
+
+      <section className="hud-panel p-5">
+        <h2 className="text-sm tracking-widest text-primary">PROTEÇÕES DE ORDEM</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Cada ordem fecha automaticamente na primeira proteção acionada.
+        </p>
+        <div className="mt-4 space-y-3">
+          <Field
+            label="Take profit (%)"
+            value={engine.protection.takeProfitPct}
+            onChange={(v) => engine.setProtection({ ...engine.protection, takeProfitPct: v })}
+          />
+          <Field
+            label="Stop loss (%)"
+            value={engine.protection.stopLossPct}
+            onChange={(v) => engine.setProtection({ ...engine.protection, stopLossPct: v })}
+          />
+          <Field
+            label="Trailing stop (%) · 0 desliga"
+            value={engine.protection.trailingStopPct}
+            onChange={(v) => engine.setProtection({ ...engine.protection, trailingStopPct: v })}
           />
         </div>
       </section>

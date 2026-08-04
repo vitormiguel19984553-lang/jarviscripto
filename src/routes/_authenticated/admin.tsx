@@ -9,6 +9,7 @@ import {
   loadPlatformSettings,
   planLabels,
   savePlatformSettings,
+  setEmergencyStop,
   setUserActive,
   setUserPlan,
   type PlanTier,
@@ -90,12 +91,22 @@ function AdminPage() {
       savePlatformSettings({
         max_loss_trade: Math.max(1, Number(maxTrade) || 1),
         max_loss_day: Math.max(1, Number(maxDay) || 1),
+        emergency_stop: platform?.emergency_stop ?? false,
       }),
     onSuccess: () => {
       toast.success("Limites globais atualizados");
       refresh();
     },
     onError: () => toast.error("Não foi possível guardar os limites"),
+  });
+
+  const emergency = useMutation({
+    mutationFn: (enabled: boolean) => setEmergencyStop(enabled),
+    onSuccess: (_d, enabled) => {
+      toast.success(enabled ? "Paragem de emergência ativada" : "Automação global reativada");
+      refresh();
+    },
+    onError: () => toast.error("Não foi possível alterar a paragem de emergência"),
   });
 
   const plan = useMutation({
@@ -149,6 +160,30 @@ function AdminPage() {
           label="ADMINS"
           value={String((data?.users ?? []).filter((u) => u.isAdmin).length)}
         />
+      </section>
+
+      <section
+        className={`hud-panel mt-6 p-5 ${platform?.emergency_stop ? "border-destructive/60" : ""}`}
+      >
+        <h2 className="mb-3 font-display text-xs tracking-widest text-destructive">
+          PARAGEM DE EMERGÊNCIA GLOBAL
+        </h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          {platform?.emergency_stop
+            ? "Ativa: toda a automação no servidor está travada e nenhum bot pode operar."
+            : "Desliga imediatamente a automação de todas as contas no servidor."}
+        </p>
+        <button
+          onClick={() => emergency.mutate(!(platform?.emergency_stop ?? false))}
+          disabled={emergency.isPending || !platform}
+          className={`rounded-md border px-4 py-1.5 font-display text-[11px] tracking-widest disabled:opacity-50 ${
+            platform?.emergency_stop
+              ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
+              : "border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/20"
+          }`}
+        >
+          {platform?.emergency_stop ? "REATIVAR AUTOMAÇÃO" : "PARAR TUDO AGORA"}
+        </button>
       </section>
 
       <section className="hud-panel mt-6 p-5">
