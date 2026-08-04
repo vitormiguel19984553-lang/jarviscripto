@@ -111,12 +111,6 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         const globalMaxLossTrade = Number(platform?.max_loss_trade ?? Number.MAX_SAFE_INTEGER);
         const globalMaxLossDay = Number(platform?.max_loss_day ?? Number.MAX_SAFE_INTEGER);
 
-        let coins: Coin[] = [];
-        try {
-          coins = await fetchMarkets();
-        } catch {
-          return Response.json({ error: "market_unavailable" }, { status: 502 });
-        }
 
         let processed = 0;
 
