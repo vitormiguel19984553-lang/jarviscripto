@@ -6,6 +6,7 @@ import { checkIsAdmin } from "@/lib/admin";
 const items = [
   { to: "/dashboard", label: "PAINEL" },
   { to: "/chat", label: "JARVIS IA" },
+  { to: "/watchlist", label: "WATCHLIST" },
   { to: "/relatorios", label: "RELATÓRIOS" },
   { to: "/alertas", label: "ALERTAS" },
   { to: "/backtest", label: "BACKTEST" },
