@@ -17,6 +17,12 @@ import {
   type SymbolStat,
 } from "@/lib/strategy";
 import { sizeForWeight, thresholdForSymbol } from "@/lib/learning";
+import {
+  defaultProtection,
+  exitLabels,
+  simulateProtectedTrade,
+  type Protection,
+} from "@/lib/protection";
 
 
 
@@ -51,6 +57,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
     maxLossPerDay: 60,
   });
   const [halted, setHalted] = useState(false);
+  const [protection, setProtection] = useState<Protection>(defaultProtection);
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<StrategyState>(defaultStrategy);
   const [symbolStats, setSymbolStats] = useState<SymbolStat[]>([]);
@@ -59,6 +66,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const coinsRef = useRef(coins);
   const selRef = useRef(selected);
   const riskRef = useRef(risk);
+  const protectionRef = useRef(protection);
   const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
   const strategyRef = useRef<StrategyState>(defaultStrategy);
   const statsRef = useRef<Map<string, SymbolStat>>(new Map());
@@ -66,6 +74,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
+  protectionRef.current = protection;
 
 
   useEffect(() => {
@@ -123,6 +132,13 @@ export function useJarvis(userId: string, coins: Coin[]) {
           minTrade: Number(settings.data.min_trade),
           maxLossPerTrade: Number(settings.data.max_loss_trade),
           maxLossPerDay: Number(settings.data.max_loss_day),
+        });
+        setProtection({
+          takeProfitPct: Number(settings.data.take_profit_pct ?? defaultProtection.takeProfitPct),
+          stopLossPct: Number(settings.data.stop_loss_pct ?? defaultProtection.stopLossPct),
+          trailingStopPct: Number(
+            settings.data.trailing_stop_pct ?? defaultProtection.trailingStopPct,
+          ),
         });
       } else {
         await supabase.from("bot_settings").insert({ user_id: userId });
@@ -196,6 +212,15 @@ export function useJarvis(userId: string, coins: Coin[]) {
     });
   };
 
+  const updateProtection = (next: Protection) => {
+    setProtection(next);
+    void persistSettings({
+      take_profit_pct: next.takeProfitPct,
+      stop_loss_pct: next.stopLossPct,
+      trailing_stop_pct: next.trailingStopPct,
+    });
+  };
+
   const updateDuration = (h: number) => {
     setDurationHours(h);
     void persistSettings({ duration_hours: h });
@@ -245,12 +270,16 @@ export function useJarvis(userId: string, coins: Coin[]) {
       const r = riskRef.current;
       const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
       const amount = sizeForWeight(base, stat.weight);
-      const win = Math.random() * 100 < signal.confidence;
-      const raw = win
-        ? amount * (0.004 + Math.random() * 0.03)
-
-        : -amount * (0.004 + Math.random() * 0.03);
-      const pnl = Number(Math.max(-r.maxLossPerTrade, raw).toFixed(2));
+      // Proteções de ordem: a saída acontece no take profit, stop loss ou
+      // trailing stop, conforme o caminho simulado do preço.
+      const sim = simulateProtectedTrade(
+        amount,
+        signal.confidence / 100,
+        protectionRef.current,
+        Math.max(0.2, Math.min(1.5, coin.price_change_percentage_24h_in_currency ? Math.abs(coin.price_change_percentage_24h_in_currency) / 6 : 0.6)),
+      );
+      const pnl = Number(Math.max(-r.maxLossPerTrade, sim.pnl).toFixed(2));
+      const exitReason = `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)`;
 
       if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
         setRunning(false);
@@ -273,7 +302,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           userId,
           kind: "trade",
           title: `${action} ${coin.symbol.toUpperCase()} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
-          body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${signal.reason}`,
+          body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${exitReason}`,
         }).catch(() => undefined);
       }
 
@@ -286,7 +315,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           amount,
           pnl,
           confidence: signal.confidence,
-          reason: signal.reason,
+          reason: exitReason,
         })
         .select()
         .single();
@@ -311,7 +340,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
               amount,
               pnl,
               confidence: signal.confidence,
-              reason: signal.reason,
+              reason: exitReason,
             },
             ...l,
           ].slice(0, 100),
@@ -386,6 +415,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     deposit,
     strategy,
     symbolStats,
+    protection,
+    setProtection: updateProtection,
 
   };
 }
