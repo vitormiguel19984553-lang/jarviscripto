@@ -214,6 +214,137 @@ export type Database = {
         }
         Relationships: []
       }
+      ia_memoria: {
+        Row: {
+          confidence_penalty: number
+          created_at: string
+          description: string
+          id: string
+          last_seen_at: string
+          losses: number
+          pattern_key: string
+          total_pnl: number
+          trades: number
+          updated_at: string
+          user_id: string
+          wins: number
+        }
+        Insert: {
+          confidence_penalty?: number
+          created_at?: string
+          description?: string
+          id?: string
+          last_seen_at?: string
+          losses?: number
+          pattern_key: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id: string
+          wins?: number
+        }
+        Update: {
+          confidence_penalty?: number
+          created_at?: string
+          description?: string
+          id?: string
+          last_seen_at?: string
+          losses?: number
+          pattern_key?: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      ia_memoria_global: {
+        Row: {
+          confidence_penalty: number
+          created_at: string
+          description: string
+          last_seen_at: string
+          losses: number
+          pattern_key: string
+          total_pnl: number
+          trades: number
+          updated_at: string
+          wins: number
+        }
+        Insert: {
+          confidence_penalty?: number
+          created_at?: string
+          description?: string
+          last_seen_at?: string
+          losses?: number
+          pattern_key: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          wins?: number
+        }
+        Update: {
+          confidence_penalty?: number
+          created_at?: string
+          description?: string
+          last_seen_at?: string
+          losses?: number
+          pattern_key?: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          wins?: number
+        }
+        Relationships: []
+      }
+      ia_pareceres: {
+        Row: {
+          confidence_after: number | null
+          confidence_before: number | null
+          created_at: string
+          id: string
+          model: string
+          rationale: string
+          symbol: string
+          trade_id: string | null
+          user_id: string
+          verdict: string
+        }
+        Insert: {
+          confidence_after?: number | null
+          confidence_before?: number | null
+          created_at?: string
+          id?: string
+          model: string
+          rationale?: string
+          symbol: string
+          trade_id?: string | null
+          user_id: string
+          verdict: string
+        }
+        Update: {
+          confidence_after?: number | null
+          confidence_before?: number | null
+          created_at?: string
+          id?: string
+          model?: string
+          rationale?: string
+          symbol?: string
+          trade_id?: string | null
+          user_id?: string
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ia_pareceres_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           created_at: string
