@@ -111,7 +111,9 @@ function ChatPage() {
               <li
                 key={t.id}
                 className={`flex items-center gap-1 rounded-md px-1 ${
-                  t.id === threadId ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-secondary/60"
+                  t.id === threadId
+                    ? "bg-primary/10 ring-1 ring-primary/40"
+                    : "hover:bg-secondary/60"
                 }`}
               >
                 <Link
@@ -256,9 +258,7 @@ function ChatWindow({
           <div
             key={m.id}
             className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
-              m.role === "user"
-                ? "ml-auto bg-primary/15 ring-1 ring-primary/30"
-                : "bg-secondary/60"
+              m.role === "user" ? "ml-auto bg-primary/15 ring-1 ring-primary/30" : "bg-secondary/60"
             }`}
           >
             {m.parts.map((p, i) => (p.type === "text" ? <span key={i}>{p.text}</span> : null))}

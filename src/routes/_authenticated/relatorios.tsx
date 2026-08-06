@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { eur } from "@/lib/market";
 import { JarvisNav } from "@/components/JarvisNav";
+import { BottomNav } from "@/components/BottomNav";
 import { Sparkline } from "@/components/Sparkline";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({
@@ -75,7 +76,7 @@ function Relatorios() {
   }, [inPeriod]);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <h1 className="text-xl text-glow sm:text-2xl">RELATÓRIOS</h1>
@@ -83,7 +84,9 @@ function Relatorios() {
             Desempenho da IA em modo simulação · {inPeriod.length} operações no período
           </p>
         </div>
-        <JarvisNav />
+        <div className="hidden md:block">
+          <JarvisNav />
+        </div>
       </header>
 
       <div className="mt-6 flex gap-2">
@@ -106,10 +109,7 @@ function Relatorios() {
         <Stat label="RESULTADO" value={eur(pnl)} tone={pnl >= 0 ? "up" : "down"} />
         <Stat label="TAXA DE ACERTO" value={`${winRate.toFixed(1)}%`} />
         <Stat label="VOLUME NEGOCIADO" value={eur(volume)} />
-        <Stat
-          label="MELHOR / PIOR"
-          value={`${eur(best)} / ${eur(worst)}`}
-        />
+        <Stat label="MELHOR / PIOR" value={`${eur(best)} / ${eur(worst)}`} />
       </section>
 
       <section className="hud-panel mt-6 p-5">
@@ -190,19 +190,12 @@ function Relatorios() {
           </div>
         )}
       </section>
+      <BottomNav />
     </main>
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "up" | "down";
-}) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
   return (
     <div className="hud-panel p-4">
       <p className="text-[10px] tracking-widest text-muted-foreground">{label}</p>

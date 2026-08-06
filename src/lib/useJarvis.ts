@@ -29,8 +29,6 @@ import {
   type Protection,
 } from "@/lib/protection";
 
-
-
 export type TradeLog = {
   id: string;
   time: Date;
@@ -83,7 +81,6 @@ export function useJarvis(userId: string, coins: Coin[]) {
   riskRef.current = risk;
   protectionRef.current = protection;
 
-
   useEffect(() => {
     let active = true;
     loadAlertSettings(userId)
@@ -115,8 +112,6 @@ export function useJarvis(userId: string, coins: Coin[]) {
       active = false;
     };
   }, [userId]);
-
-
 
   // Carregar carteira, definições e histórico da Cloud
   useEffect(() => {
@@ -164,7 +159,6 @@ export function useJarvis(userId: string, coins: Coin[]) {
       pnlHistoryRef.current = (trades.data ?? []).map((t) => Number(t.pnl));
 
       setLogs(
-
         (trades.data ?? []).map((t) => ({
           id: t.id,
           time: new Date(t.created_at),
@@ -185,17 +179,15 @@ export function useJarvis(userId: string, coins: Coin[]) {
 
   const persistWallet = useCallback(
     async (nextAvailable: number, nextInvested: number) => {
-      await supabase
-        .from("wallets")
-        .upsert(
-          {
-            user_id: userId,
-            available: nextAvailable,
-            invested: nextInvested,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
+      await supabase.from("wallets").upsert(
+        {
+          user_id: userId,
+          available: nextAvailable,
+          invested: nextInvested,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
     },
     [userId],
   );
@@ -433,7 +425,6 @@ export function useJarvis(userId: string, coins: Coin[]) {
       } catch {
         /* memória não bloqueia a operação */
       }
-
     }, 4000);
     return () => clearInterval(engine);
   }, [running, userId, persistWallet]);
@@ -487,6 +478,5 @@ export function useJarvis(userId: string, coins: Coin[]) {
     setProtection: updateProtection,
     plan,
     limits: limitsFor(plan),
-
   };
 }

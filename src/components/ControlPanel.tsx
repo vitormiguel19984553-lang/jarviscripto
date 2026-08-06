@@ -134,7 +134,9 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
         <h2 className="text-sm tracking-widest text-primary">CARTEIRA (SIMULAÇÃO)</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-md border border-border bg-secondary/40 p-3">
-            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Disponível</p>
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
+              Disponível
+            </p>
             <p className="font-display text-lg">{eur(engine.available)}</p>
           </div>
           <div className="rounded-md border border-border bg-secondary/40 p-3">

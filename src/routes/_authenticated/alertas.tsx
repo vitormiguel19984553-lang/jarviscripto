@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { JarvisNav } from "@/components/JarvisNav";
+import { BottomNav } from "@/components/BottomNav";
 import {
   clearAlerts,
   listAlerts,
@@ -55,7 +56,7 @@ function AlertasPage() {
   const unread = (alerts.data ?? []).filter((a) => !a.read).length;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <h1 className="text-xl text-glow sm:text-2xl">ALERTAS</h1>
@@ -63,7 +64,9 @@ function AlertasPage() {
             {unread > 0 ? `${unread} alerta(s) sem ler` : "Sem alertas novos"}
           </p>
         </div>
-        <JarvisNav />
+        <div className="hidden md:block">
+          <JarvisNav />
+        </div>
       </header>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -164,6 +167,7 @@ function AlertasPage() {
           </ul>
         </section>
       </div>
+      <BottomNav />
     </main>
   );
 }

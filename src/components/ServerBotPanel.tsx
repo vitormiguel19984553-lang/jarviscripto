@@ -48,7 +48,9 @@ export function ServerBotPanel({
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm tracking-widest text-primary">AUTOMAÇÃO 24/7 (SERVIDOR)</h2>
         <span className="flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1">
-          <span className={`size-2 rounded-full ${active ? "bg-success" : "bg-muted-foreground"}`} />
+          <span
+            className={`size-2 rounded-full ${active ? "bg-success" : "bg-muted-foreground"}`}
+          />
           <span className="font-display text-[10px] tracking-widest">
             {active ? "A CORRER" : "PARADA"}
           </span>

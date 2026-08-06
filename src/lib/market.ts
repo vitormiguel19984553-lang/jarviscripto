@@ -53,7 +53,6 @@ export async function fetchMarkets(): Promise<Coin[]> {
   return res.json();
 }
 
-
 export const eur = (v: number) =>
   new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -151,7 +150,6 @@ export function analyse(coin: Coin): Signal {
     (last > upperBand ? ", preço acima da banda superior de Bollinger" : "") +
     (r > 70 && trend === "alta" ? ", RSI alto acompanhado por tendência de alta" : "") +
     ".";
-
 
   return { action, confidence, rsi: r, vol: v, trend, reason };
 }

@@ -30,7 +30,8 @@ export function BrainPanel({ userId }: { userId: string }) {
     <section className="hud-panel p-5">
       <h2 className="text-sm tracking-widest text-primary">CÉREBRO DA IA</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        A IA guarda padrões de mercado (não resultados isolados) e consulta-os antes de cada decisão.
+        A IA guarda padrões de mercado (não resultados isolados) e consulta-os antes de cada
+        decisão.
       </p>
 
       {loading && (
@@ -93,8 +94,7 @@ export function BrainPanel({ userId }: { userId: string }) {
                   <p className="mt-1 text-muted-foreground">{o.rationale}</p>
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     {o.model} · confiança {o.confidence_before ?? "—"}% →{" "}
-                    {o.confidence_after ?? "—"}% ·{" "}
-                    {new Date(o.created_at).toLocaleString("pt-PT")}
+                    {o.confidence_after ?? "—"}% · {new Date(o.created_at).toLocaleString("pt-PT")}
                   </p>
                 </li>
               ))}

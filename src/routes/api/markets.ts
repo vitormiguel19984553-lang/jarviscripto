@@ -41,7 +41,10 @@ export const Route = createFileRoute("/api/markets")({
               return Response.json(cache.payload, { headers: { "x-cache": "stale" } });
             }
             return Response.json(
-              { error: "market_unavailable", message: "A fonte de dados de mercado recusou o pedido." },
+              {
+                error: "market_unavailable",
+                message: "A fonte de dados de mercado recusou o pedido.",
+              },
               { status: 502 },
             );
           }
@@ -55,7 +58,10 @@ export const Route = createFileRoute("/api/markets")({
             return Response.json(cache.payload, { headers: { "x-cache": "stale" } });
           }
           return Response.json(
-            { error: "market_unavailable", message: "Não foi possível contactar a fonte de dados." },
+            {
+              error: "market_unavailable",
+              message: "Não foi possível contactar a fonte de dados.",
+            },
             { status: 502 },
           );
         }

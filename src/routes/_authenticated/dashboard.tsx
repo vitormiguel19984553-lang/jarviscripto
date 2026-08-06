@@ -45,7 +45,15 @@ function CoinSkeleton() {
   return <div className="hud-panel h-40 animate-pulse bg-secondary/40" />;
 }
 
-function ProfileMenu({ email, plan, onSignOut }: { email: string; plan: string; onSignOut: () => void }) {
+function ProfileMenu({
+  email,
+  plan,
+  onSignOut,
+}: {
+  email: string;
+  plan: string;
+  onSignOut: () => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -60,9 +68,7 @@ function ProfileMenu({ email, plan, onSignOut }: { email: string; plan: string; 
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-60 rounded-md border border-border bg-card p-3 shadow-lg">
           <p className="truncate text-xs text-foreground">{email}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Plano {plan} · modo simulação
-          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Plano {plan} · modo simulação</p>
           <button
             onClick={onSignOut}
             className="mt-3 w-full rounded-md border border-border bg-secondary/60 px-3 py-2 font-display text-[11px] hover:bg-secondary"
@@ -127,11 +133,7 @@ function Dashboard() {
             </span>
           </div>
           <div className="md:hidden">
-            <ProfileMenu
-              email={user.email ?? ""}
-              plan={engine.limits.label}
-              onSignOut={signOut}
-            />
+            <ProfileMenu email={user.email ?? ""} plan={engine.limits.label} onSignOut={signOut} />
           </div>
           <button
             onClick={signOut}
@@ -217,8 +219,8 @@ function Dashboard() {
       )}
 
       <footer className="mt-8 text-center text-xs text-muted-foreground">
-        Simulação · cérebro da IA com memória de padrões, revisão cruzada entre modelos e limites por
-        plano.
+        Simulação · cérebro da IA com memória de padrões, revisão cruzada entre modelos e limites
+        por plano.
       </footer>
 
       <BottomNav />

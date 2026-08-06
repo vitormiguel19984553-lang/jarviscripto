@@ -17,8 +17,7 @@ export type MemoryRow = {
 
 export type Pattern = { key: string; description: string };
 
-const rsiBucket = (r: number) =>
-  r >= 70 ? "rsi_alto" : r <= 35 ? "rsi_baixo" : "rsi_neutro";
+const rsiBucket = (r: number) => (r >= 70 ? "rsi_alto" : r <= 35 ? "rsi_baixo" : "rsi_neutro");
 const volBucket = (v: number) => (v > 1.2 ? "vol_alta" : v < 0.5 ? "vol_baixa" : "vol_media");
 
 const labels: Record<string, string> = {

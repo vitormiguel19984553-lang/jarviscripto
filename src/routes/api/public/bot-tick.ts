@@ -115,7 +115,6 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         const globalMaxLossTrade = Number(platform?.max_loss_trade ?? Number.MAX_SAFE_INTEGER);
         const globalMaxLossDay = Number(platform?.max_loss_day ?? Number.MAX_SAFE_INTEGER);
 
-
         let processed = 0;
 
         for (const s of rows) {
@@ -279,7 +278,10 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               stopLossPct: Number(s.stop_loss_pct ?? 1.5),
               trailingStopPct: Number(s.trailing_stop_pct ?? 1),
             },
-            Math.max(0.2, Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6)),
+            Math.max(
+              0.2,
+              Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6),
+            ),
           );
           const pnl = Number(Math.max(-maxLossTrade, sim.pnl).toFixed(2));
           const exitReason =

@@ -15,6 +15,7 @@ import {
   type PlanTier,
 } from "@/lib/admin";
 import { JarvisNav } from "@/components/JarvisNav";
+import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -129,9 +130,8 @@ function AdminPage() {
 
   const t = data?.totals;
 
-
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <h1 className="text-xl text-glow sm:text-2xl">ADMINISTRAÇÃO</h1>
@@ -139,7 +139,9 @@ function AdminPage() {
             Visão global da plataforma · acesso restrito a administradores
           </p>
         </div>
-        <JarvisNav />
+        <div className="hidden md:block">
+          <JarvisNav />
+        </div>
       </header>
 
       {isLoading && <p className="mt-4 text-sm text-muted-foreground">A carregar métricas…</p>}
@@ -301,7 +303,6 @@ function AdminPage() {
                       {u.isActive ? "ATIVA" : "DESATIVADA"}
                     </button>
                   </td>
-
                 </tr>
               ))}
             </tbody>
@@ -340,6 +341,7 @@ function AdminPage() {
       <p className="mt-6 pb-4 text-center text-xs text-muted-foreground">
         Gestão de planos, limites globais e ativação de contas entram na próxima fase.
       </p>
+      <BottomNav />
     </main>
   );
 }
