@@ -1,632 +1,755 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
+    PostgrestVersion: "14.5";
+  };
   public: {
     Tables: {
       alert_settings: {
         Row: {
-          created_at: string
-          email_enabled: boolean
-          min_pnl: number
-          on_risk_halt: boolean
-          on_trade: boolean
-          updated_at: string
-          user_id: string
-        }
+          created_at: string;
+          email_enabled: boolean;
+          min_pnl: number;
+          on_risk_halt: boolean;
+          on_trade: boolean;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          email_enabled?: boolean
-          min_pnl?: number
-          on_risk_halt?: boolean
-          on_trade?: boolean
-          updated_at?: string
-          user_id: string
-        }
+          created_at?: string;
+          email_enabled?: boolean;
+          min_pnl?: number;
+          on_risk_halt?: boolean;
+          on_trade?: boolean;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          email_enabled?: boolean
-          min_pnl?: number
-          on_risk_halt?: boolean
-          on_trade?: boolean
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          email_enabled?: boolean;
+          min_pnl?: number;
+          on_risk_halt?: boolean;
+          on_trade?: boolean;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       alerts: {
         Row: {
-          body: string
-          created_at: string
-          emailed: boolean
-          id: string
-          kind: string
-          read: boolean
-          title: string
-          user_id: string
-        }
+          body: string;
+          created_at: string;
+          emailed: boolean;
+          id: string;
+          kind: string;
+          read: boolean;
+          title: string;
+          user_id: string;
+        };
         Insert: {
-          body: string
-          created_at?: string
-          emailed?: boolean
-          id?: string
-          kind: string
-          read?: boolean
-          title: string
-          user_id: string
-        }
+          body: string;
+          created_at?: string;
+          emailed?: boolean;
+          id?: string;
+          kind: string;
+          read?: boolean;
+          title: string;
+          user_id: string;
+        };
         Update: {
-          body?: string
-          created_at?: string
-          emailed?: boolean
-          id?: string
-          kind?: string
-          read?: boolean
-          title?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          body?: string;
+          created_at?: string;
+          emailed?: boolean;
+          id?: string;
+          kind?: string;
+          read?: boolean;
+          title?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       bot_cron_config: {
         Row: {
-          endpoint: string
-          id: boolean
-          token: string
-        }
+          endpoint: string;
+          id: boolean;
+          token: string;
+        };
         Insert: {
-          endpoint: string
-          id?: boolean
-          token?: string
-        }
+          endpoint: string;
+          id?: boolean;
+          token?: string;
+        };
         Update: {
-          endpoint?: string
-          id?: boolean
-          token?: string
-        }
-        Relationships: []
-      }
+          endpoint?: string;
+          id?: boolean;
+          token?: string;
+        };
+        Relationships: [];
+      };
       bot_settings: {
         Row: {
-          auto_run: boolean
-          day_loss: number
-          day_loss_date: string
-          duration_hours: number
-          last_tick_at: string | null
-          max_loss_day: number
-          max_loss_trade: number
-          min_trade: number
-          run_until: string | null
-          selected_coins: string[]
-          stop_loss_pct: number
-          take_profit_pct: number
-          trailing_stop_pct: number
-          updated_at: string
-          user_id: string
-        }
+          auto_run: boolean;
+          day_loss: number;
+          day_loss_date: string;
+          duration_hours: number;
+          last_tick_at: string | null;
+          max_loss_day: number;
+          max_loss_trade: number;
+          min_trade: number;
+          run_until: string | null;
+          selected_coins: string[];
+          stop_loss_pct: number;
+          take_profit_pct: number;
+          trailing_stop_pct: number;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          auto_run?: boolean
-          day_loss?: number
-          day_loss_date?: string
-          duration_hours?: number
-          last_tick_at?: string | null
-          max_loss_day?: number
-          max_loss_trade?: number
-          min_trade?: number
-          run_until?: string | null
-          selected_coins?: string[]
-          stop_loss_pct?: number
-          take_profit_pct?: number
-          trailing_stop_pct?: number
-          updated_at?: string
-          user_id: string
-        }
+          auto_run?: boolean;
+          day_loss?: number;
+          day_loss_date?: string;
+          duration_hours?: number;
+          last_tick_at?: string | null;
+          max_loss_day?: number;
+          max_loss_trade?: number;
+          min_trade?: number;
+          run_until?: string | null;
+          selected_coins?: string[];
+          stop_loss_pct?: number;
+          take_profit_pct?: number;
+          trailing_stop_pct?: number;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          auto_run?: boolean
-          day_loss?: number
-          day_loss_date?: string
-          duration_hours?: number
-          last_tick_at?: string | null
-          max_loss_day?: number
-          max_loss_trade?: number
-          min_trade?: number
-          run_until?: string | null
-          selected_coins?: string[]
-          stop_loss_pct?: number
-          take_profit_pct?: number
-          trailing_stop_pct?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          auto_run?: boolean;
+          day_loss?: number;
+          day_loss_date?: string;
+          duration_hours?: number;
+          last_tick_at?: string | null;
+          max_loss_day?: number;
+          max_loss_trade?: number;
+          min_trade?: number;
+          run_until?: string | null;
+          selected_coins?: string[];
+          stop_loss_pct?: number;
+          take_profit_pct?: number;
+          trailing_stop_pct?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       chat_messages: {
         Row: {
-          client_message_id: string | null
-          content: string
-          created_at: string
-          id: string
-          role: string
-          thread_id: string
-          updated_at: string
-          user_id: string
-        }
+          client_message_id: string | null;
+          content: string;
+          created_at: string;
+          id: string;
+          role: string;
+          thread_id: string;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          client_message_id?: string | null
-          content: string
-          created_at?: string
-          id?: string
-          role: string
-          thread_id: string
-          updated_at?: string
-          user_id: string
-        }
+          client_message_id?: string | null;
+          content: string;
+          created_at?: string;
+          id?: string;
+          role: string;
+          thread_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          client_message_id?: string | null
-          content?: string
-          created_at?: string
-          id?: string
-          role?: string
-          thread_id?: string
-          updated_at?: string
-          user_id?: string
-        }
+          client_message_id?: string | null;
+          content?: string;
+          created_at?: string;
+          id?: string;
+          role?: string;
+          thread_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "chat_messages_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
+            foreignKeyName: "chat_messages_thread_id_fkey";
+            columns: ["thread_id"];
+            isOneToOne: false;
+            referencedRelation: "chat_threads";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       chat_threads: {
         Row: {
-          created_at: string
-          id: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          title: string;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          title?: string
-          updated_at?: string
-          user_id: string
-        }
+          created_at?: string;
+          id?: string;
+          title?: string;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          title?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+      ia_memoria: {
+        Row: {
+          confidence_penalty: number;
+          created_at: string;
+          description: string;
+          id: string;
+          last_seen_at: string;
+          losses: number;
+          pattern_key: string;
+          total_pnl: number;
+          trades: number;
+          updated_at: string;
+          user_id: string;
+          wins: number;
+        };
+        Insert: {
+          confidence_penalty?: number;
+          created_at?: string;
+          description?: string;
+          id?: string;
+          last_seen_at?: string;
+          losses?: number;
+          pattern_key: string;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          user_id: string;
+          wins?: number;
+        };
+        Update: {
+          confidence_penalty?: number;
+          created_at?: string;
+          description?: string;
+          id?: string;
+          last_seen_at?: string;
+          losses?: number;
+          pattern_key?: string;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          user_id?: string;
+          wins?: number;
+        };
+        Relationships: [];
+      };
+      ia_memoria_global: {
+        Row: {
+          confidence_penalty: number;
+          created_at: string;
+          description: string;
+          last_seen_at: string;
+          losses: number;
+          pattern_key: string;
+          total_pnl: number;
+          trades: number;
+          updated_at: string;
+          wins: number;
+        };
+        Insert: {
+          confidence_penalty?: number;
+          created_at?: string;
+          description?: string;
+          last_seen_at?: string;
+          losses?: number;
+          pattern_key: string;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          wins?: number;
+        };
+        Update: {
+          confidence_penalty?: number;
+          created_at?: string;
+          description?: string;
+          last_seen_at?: string;
+          losses?: number;
+          pattern_key?: string;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          wins?: number;
+        };
+        Relationships: [];
+      };
+      ia_pareceres: {
+        Row: {
+          confidence_after: number | null;
+          confidence_before: number | null;
+          created_at: string;
+          id: string;
+          model: string;
+          rationale: string;
+          symbol: string;
+          trade_id: string | null;
+          user_id: string;
+          verdict: string;
+        };
+        Insert: {
+          confidence_after?: number | null;
+          confidence_before?: number | null;
+          created_at?: string;
+          id?: string;
+          model: string;
+          rationale?: string;
+          symbol: string;
+          trade_id?: string | null;
+          user_id: string;
+          verdict: string;
+        };
+        Update: {
+          confidence_after?: number | null;
+          confidence_before?: number | null;
+          created_at?: string;
+          id?: string;
+          model?: string;
+          rationale?: string;
+          symbol?: string;
+          trade_id?: string | null;
+          user_id?: string;
+          verdict?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ia_pareceres_trade_id_fkey";
+            columns: ["trade_id"];
+            isOneToOne: false;
+            referencedRelation: "trades";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       platform_settings: {
         Row: {
-          created_at: string
-          emergency_stop: boolean
-          id: boolean
-          max_loss_day: number
-          max_loss_trade: number
-          updated_at: string
-        }
+          created_at: string;
+          emergency_stop: boolean;
+          id: boolean;
+          max_loss_day: number;
+          max_loss_trade: number;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          emergency_stop?: boolean
-          id?: boolean
-          max_loss_day?: number
-          max_loss_trade?: number
-          updated_at?: string
-        }
+          created_at?: string;
+          emergency_stop?: boolean;
+          id?: boolean;
+          max_loss_day?: number;
+          max_loss_trade?: number;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          emergency_stop?: boolean
-          id?: boolean
-          max_loss_day?: number
-          max_loss_trade?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          emergency_stop?: boolean;
+          id?: boolean;
+          max_loss_day?: number;
+          max_loss_trade?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       price_alerts: {
         Row: {
-          active: boolean
-          created_at: string
-          direction: string
-          id: string
-          last_triggered_at: string | null
-          symbol: string
-          target_price: number
-          updated_at: string
-          user_id: string
-        }
+          active: boolean;
+          created_at: string;
+          direction: string;
+          id: string;
+          last_triggered_at: string | null;
+          symbol: string;
+          target_price: number;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          active?: boolean
-          created_at?: string
-          direction?: string
-          id?: string
-          last_triggered_at?: string | null
-          symbol: string
-          target_price: number
-          updated_at?: string
-          user_id: string
-        }
+          active?: boolean;
+          created_at?: string;
+          direction?: string;
+          id?: string;
+          last_triggered_at?: string | null;
+          symbol: string;
+          target_price: number;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          active?: boolean
-          created_at?: string
-          direction?: string
-          id?: string
-          last_triggered_at?: string | null
-          symbol?: string
-          target_price?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          active?: boolean;
+          created_at?: string;
+          direction?: string;
+          id?: string;
+          last_triggered_at?: string | null;
+          symbol?: string;
+          target_price?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
-          created_at: string
-          display_name: string | null
-          id: string
-          is_active: boolean
-          plan: Database["public"]["Enums"]["plan_tier"]
-        }
+          created_at: string;
+          display_name: string | null;
+          id: string;
+          is_active: boolean;
+          plan: Database["public"]["Enums"]["plan_tier"];
+        };
         Insert: {
-          created_at?: string
-          display_name?: string | null
-          id: string
-          is_active?: boolean
-          plan?: Database["public"]["Enums"]["plan_tier"]
-        }
+          created_at?: string;
+          display_name?: string | null;
+          id: string;
+          is_active?: boolean;
+          plan?: Database["public"]["Enums"]["plan_tier"];
+        };
         Update: {
-          created_at?: string
-          display_name?: string | null
-          id?: string
-          is_active?: boolean
-          plan?: Database["public"]["Enums"]["plan_tier"]
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          display_name?: string | null;
+          id?: string;
+          is_active?: boolean;
+          plan?: Database["public"]["Enums"]["plan_tier"];
+        };
+        Relationships: [];
+      };
       strategy_state: {
         Row: {
-          created_at: string
-          id: string
-          last_adjust_at: string | null
-          losses: number
-          min_confidence: number
-          sharpe: number
-          total_pnl: number
-          trades: number
-          updated_at: string
-          user_id: string
-          wins: number
-        }
+          created_at: string;
+          id: string;
+          last_adjust_at: string | null;
+          losses: number;
+          min_confidence: number;
+          sharpe: number;
+          total_pnl: number;
+          trades: number;
+          updated_at: string;
+          user_id: string;
+          wins: number;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          last_adjust_at?: string | null
-          losses?: number
-          min_confidence?: number
-          sharpe?: number
-          total_pnl?: number
-          trades?: number
-          updated_at?: string
-          user_id: string
-          wins?: number
-        }
+          created_at?: string;
+          id?: string;
+          last_adjust_at?: string | null;
+          losses?: number;
+          min_confidence?: number;
+          sharpe?: number;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          user_id: string;
+          wins?: number;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          last_adjust_at?: string | null
-          losses?: number
-          min_confidence?: number
-          sharpe?: number
-          total_pnl?: number
-          trades?: number
-          updated_at?: string
-          user_id?: string
-          wins?: number
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          last_adjust_at?: string | null;
+          losses?: number;
+          min_confidence?: number;
+          sharpe?: number;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          user_id?: string;
+          wins?: number;
+        };
+        Relationships: [];
+      };
       strategy_symbol_stats: {
         Row: {
-          created_at: string
-          id: string
-          symbol: string
-          total_pnl: number
-          trades: number
-          updated_at: string
-          user_id: string
-          weight: number
-          wins: number
-        }
+          created_at: string;
+          id: string;
+          symbol: string;
+          total_pnl: number;
+          trades: number;
+          updated_at: string;
+          user_id: string;
+          weight: number;
+          wins: number;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          symbol: string
-          total_pnl?: number
-          trades?: number
-          updated_at?: string
-          user_id: string
-          weight?: number
-          wins?: number
-        }
+          created_at?: string;
+          id?: string;
+          symbol: string;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          user_id: string;
+          weight?: number;
+          wins?: number;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          symbol?: string
-          total_pnl?: number
-          trades?: number
-          updated_at?: string
-          user_id?: string
-          weight?: number
-          wins?: number
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          symbol?: string;
+          total_pnl?: number;
+          trades?: number;
+          updated_at?: string;
+          user_id?: string;
+          weight?: number;
+          wins?: number;
+        };
+        Relationships: [];
+      };
       trades: {
         Row: {
-          action: string
-          amount: number
-          confidence: number
-          created_at: string
-          id: string
-          pnl: number
-          reason: string
-          symbol: string
-          user_id: string
-        }
+          action: string;
+          amount: number;
+          confidence: number;
+          created_at: string;
+          id: string;
+          pnl: number;
+          reason: string;
+          symbol: string;
+          user_id: string;
+        };
         Insert: {
-          action: string
-          amount: number
-          confidence: number
-          created_at?: string
-          id?: string
-          pnl: number
-          reason: string
-          symbol: string
-          user_id: string
-        }
+          action: string;
+          amount: number;
+          confidence: number;
+          created_at?: string;
+          id?: string;
+          pnl: number;
+          reason: string;
+          symbol: string;
+          user_id: string;
+        };
         Update: {
-          action?: string
-          amount?: number
-          confidence?: number
-          created_at?: string
-          id?: string
-          pnl?: number
-          reason?: string
-          symbol?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          action?: string;
+          amount?: number;
+          confidence?: number;
+          created_at?: string;
+          id?: string;
+          pnl?: number;
+          reason?: string;
+          symbol?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       user_roles: {
         Row: {
-          created_at: string
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at: string
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          user_id: string
-        }
+          created_at?: string;
+          id?: string;
+          role: Database["public"]["Enums"]["app_role"];
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          role?: Database["public"]["Enums"]["app_role"];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       wallets: {
         Row: {
-          available: number
-          invested: number
-          updated_at: string
-          user_id: string
-        }
+          available: number;
+          invested: number;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          available?: number
-          invested?: number
-          updated_at?: string
-          user_id: string
-        }
+          available?: number;
+          invested?: number;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          available?: number
-          invested?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          available?: number;
+          invested?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       watchlist: {
         Row: {
-          created_at: string
-          id: string
-          position: number
-          symbol: string
-          updated_at: string
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          position: number;
+          symbol: string;
+          updated_at: string;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id?: string
-          position?: number
-          symbol: string
-          updated_at?: string
-          user_id: string
-        }
+          created_at?: string;
+          id?: string;
+          position?: number;
+          symbol: string;
+          updated_at?: string;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          position?: number
-          symbol?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-    }
+          created_at?: string;
+          id?: string;
+          position?: number;
+          symbol?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
+    };
     Views: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Functions: {
       has_role: {
         Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      run_bot_tick: { Args: never; Returns: undefined }
-    }
+          _role: Database["public"]["Enums"]["app_role"];
+          _user_id: string;
+        };
+        Returns: boolean;
+      };
+      run_bot_tick: { Args: never; Returns: undefined };
+    };
     Enums: {
-      app_role: "admin" | "moderator" | "user"
-      plan_tier: "normal" | "plus" | "pro_max" | "enterprise"
-    }
+      app_role: "admin" | "moderator" | "user";
+      plan_tier: "normal" | "plus" | "pro_max" | "enterprise";
+    };
     CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+      [_ in never]: never;
+    };
+  };
+};
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
+      Row: infer R;
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R;
       }
       ? R
       : never
-    : never
+    : never;
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
+      Insert: infer I;
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
+        Insert: infer I;
       }
       ? I
       : never
-    : never
+    : never;
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
+      Update: infer U;
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
+        Update: infer U;
       }
       ? U
       : never
-    : never
+    : never;
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+    : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+    : never;
 
 export const Constants = {
   public: {
@@ -635,4 +758,4 @@ export const Constants = {
       plan_tier: ["normal", "plus", "pro_max", "enterprise"],
     },
   },
-} as const
+} as const;

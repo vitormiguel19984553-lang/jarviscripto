@@ -110,7 +110,10 @@ export async function recordOutcome(opts: {
       .upsert({ user_id: userId, ...next, updated_at: nowIso }, { onConflict: "user_id" }),
     supabase
       .from("strategy_symbol_stats")
-      .upsert({ user_id: userId, ...nextStat, updated_at: nowIso }, { onConflict: "user_id,symbol" }),
+      .upsert(
+        { user_id: userId, ...nextStat, updated_at: nowIso },
+        { onConflict: "user_id,symbol" },
+      ),
   ]);
 
   return { state: next, stat: nextStat };
@@ -123,4 +126,3 @@ export const defaultStat = (symbol: string): SymbolStat => ({
   total_pnl: 0,
   weight: 1,
 });
-

@@ -25,14 +25,16 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
-  const { data } = useQuery({ queryKey: ["markets"], queryFn: fetchMarkets, refetchInterval: 60_000 });
+  const { data } = useQuery({
+    queryKey: ["markets"],
+    queryFn: fetchMarkets,
+    refetchInterval: 60_000,
+  });
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
-      setSignedIn(!!session),
-    );
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -62,8 +64,8 @@ function Landing() {
       </header>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Aviso: as análises indicam apenas um nível de confiança estimado. Não existe lucro
-        garantido — investir em criptomoedas envolve risco de perda total.
+        Aviso: as análises indicam apenas um nível de confiança estimado. Não existe lucro garantido
+        — investir em criptomoedas envolve risco de perda total.
       </p>
 
       <section className="mt-8">
@@ -89,8 +91,8 @@ function Landing() {
                 </div>
                 <Sparkline data={coin.sparkline_in_7d?.price ?? []} positive={up} />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Sinal: <span className="text-primary">{s.action}</span> · confiança{" "}
-                  {s.confidence}%
+                  Sinal: <span className="text-primary">{s.action}</span> · confiança {s.confidence}
+                  %
                 </p>
               </article>
             );

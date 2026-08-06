@@ -21,13 +21,35 @@ const COINS = [
   "polkadot",
 ];
 
-export async function fetchMarkets(): Promise<Coin[]> {
+export const MARKET_COINS = COINS;
+
+/** Chamada directa à fonte (só para uso no servidor). */
+export async function fetchMarketsFromSource(): Promise<Coin[]> {
   const url =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids=" +
     COINS.join(",") +
     "&sparkline=true&price_change_percentage=24h";
   const res = await fetch(url);
   if (!res.ok) throw new Error("Falha ao obter dados de mercado");
+  return res.json();
+}
+
+/**
+ * Frontend: passa pelo proxy do servidor (`/api/markets`), que tem cache e
+ * devolve um erro claro em vez de falhar em silêncio.
+ */
+export async function fetchMarkets(): Promise<Coin[]> {
+  const res = await fetch("/api/markets", { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    let message = "Sinais indisponíveis. A tentar novamente…";
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body?.message) message = body.message;
+    } catch {
+      /* resposta sem corpo utilizável */
+    }
+    throw new Error(message);
+  }
   return res.json();
 }
 
@@ -106,16 +128,18 @@ export function analyse(coin: Coin): Signal {
   if (trend === "alta") score += 15;
   else score -= 12;
   if (r < 35) score += 18;
-  if (r > 70) score -= 20;
+  // Correção: em tendência de fundo de alta, um RSI alto é sinal de força e não
+  // de reversão — a penalização passa a ser condicional e muito mais suave.
+  if (r > 70) score -= trend === "alta" ? (r > 82 ? 6 : 2) : 20;
   if (last < lowerBand) score += 10;
-  if (last > upperBand) score -= 10;
+  if (last > upperBand) score -= trend === "alta" ? 3 : 10;
   score -= Math.min(18, v * 4);
 
   const confidence = Math.max(8, Math.min(92, Math.round(score)));
   const action: Signal["action"] =
     confidence >= 62 && trend === "alta"
       ? "COMPRAR"
-      : r > 72 || (trend === "baixa" && confidence < 40)
+      : (r > 72 && trend === "baixa") || (trend === "baixa" && confidence < 40)
         ? "VENDER"
         : "AGUARDAR";
 
@@ -124,6 +148,7 @@ export function analyse(coin: Coin): Signal {
     `RSI ${r.toFixed(0)}, volatilidade ${v.toFixed(2)}%` +
     (last < lowerBand ? ", preço junto à banda inferior de Bollinger" : "") +
     (last > upperBand ? ", preço acima da banda superior de Bollinger" : "") +
+    (r > 70 && trend === "alta" ? ", RSI alto acompanhado por tendência de alta" : "") +
     ".";
 
   return { action, confidence, rsi: r, vol: v, trend, reason };

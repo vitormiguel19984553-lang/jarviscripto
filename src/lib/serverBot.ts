@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { loadPlanLimits } from "@/lib/planStore";
 
 export type ServerBotState = {
   auto_run: boolean;
@@ -17,11 +18,20 @@ export async function loadServerBot(userId: string): Promise<ServerBotState> {
 }
 
 export async function startServerBot(userId: string, hours: number) {
-  const runUntil = new Date(Date.now() + hours * 3600_000).toISOString();
+  // O plano do utilizador define a duração máxima permitida.
+  const { limits } = await loadPlanLimits(userId);
+  const allowed = limits.serverHours;
+  const capped = Math.min(hours, allowed[allowed.length - 1]);
+  const runUntil = new Date(Date.now() + capped * 3600_000).toISOString();
   const { error } = await supabase
     .from("bot_settings")
     .upsert(
-      { user_id: userId, auto_run: true, run_until: runUntil, updated_at: new Date().toISOString() },
+      {
+        user_id: userId,
+        auto_run: true,
+        run_until: runUntil,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "user_id" },
     );
   if (error) throw error;

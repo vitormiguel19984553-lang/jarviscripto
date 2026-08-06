@@ -148,7 +148,11 @@ function Planos() {
                   : "border border-border bg-secondary/60"
               }`}
             >
-              {p.price === "0 €" ? "PLANO ATUAL" : p.id === "enterprise" ? "FALAR CONNOSCO" : "EM BREVE"}
+              {p.price === "0 €"
+                ? "PLANO ATUAL"
+                : p.id === "enterprise"
+                  ? "FALAR CONNOSCO"
+                  : "EM BREVE"}
             </button>
           </article>
         ))}

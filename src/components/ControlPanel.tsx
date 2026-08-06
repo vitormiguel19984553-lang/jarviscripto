@@ -37,11 +37,11 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
       <section className="hud-panel p-5">
         <h2 className="text-sm tracking-widest text-primary">AUTOMAÇÃO</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          {selectedCount} moeda(s) selecionada(s) para análise.
+          {selectedCount} de {engine.limits.maxCoins} moeda(s) · plano {engine.limits.label}
         </p>
 
-        <div className="mt-4 flex gap-2">
-          {[5, 12, 24].map((h) => (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {engine.limits.clientHours.map((h) => (
             <button
               key={h}
               onClick={() => engine.setDurationHours(h)}
@@ -134,7 +134,9 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
         <h2 className="text-sm tracking-widest text-primary">CARTEIRA (SIMULAÇÃO)</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-md border border-border bg-secondary/40 p-3">
-            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Disponível</p>
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
+              Disponível
+            </p>
             <p className="font-display text-lg">{eur(engine.available)}</p>
           </div>
           <div className="rounded-md border border-border bg-secondary/40 p-3">
@@ -167,11 +169,12 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
             DEPOSITAR
           </button>
           <button
-            onClick={() => engine.transfer(0, false)}
-            className="rounded-md border border-border bg-secondary/40 px-3 py-2 font-display text-xs text-muted-foreground"
-            title="Disponível na próxima fase"
+            disabled
+            aria-disabled="true"
+            className="cursor-not-allowed rounded-md border border-border bg-secondary/30 px-3 py-2 font-display text-xs text-muted-foreground opacity-60"
+            title="Levantamentos em breve"
           >
-            LEVANTAR
+            LEVANTAR · EM BREVE
           </button>
         </div>
       </section>

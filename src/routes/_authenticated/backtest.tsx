@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchMarkets, pct } from "@/lib/market";
 import { backtest, defaultConfig, type BacktestConfig } from "@/lib/backtest";
 import { JarvisNav } from "@/components/JarvisNav";
+import { BottomNav } from "@/components/BottomNav";
 import { Sparkline } from "@/components/Sparkline";
 
 export const Route = createFileRoute("/_authenticated/backtest")({
@@ -30,7 +31,8 @@ function Backtest() {
   const { data, isLoading } = useQuery({ queryKey: ["markets"], queryFn: fetchMarkets });
 
   const results = useMemo(
-    () => (data ?? []).map((c) => backtest(c, cfg)).sort((a, b) => b.totalReturnPct - a.totalReturnPct),
+    () =>
+      (data ?? []).map((c) => backtest(c, cfg)).sort((a, b) => b.totalReturnPct - a.totalReturnPct),
     [data, cfg],
   );
 
@@ -40,7 +42,7 @@ function Backtest() {
     : 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <h1 className="text-xl text-glow sm:text-2xl">BACKTESTING</h1>
@@ -49,7 +51,9 @@ function Backtest() {
             simuladas
           </p>
         </div>
-        <JarvisNav />
+        <div className="hidden md:block">
+          <JarvisNav />
+        </div>
       </header>
 
       <section className="hud-panel mt-6 grid gap-5 p-5 sm:grid-cols-3">
@@ -122,6 +126,7 @@ function Backtest() {
       <p className="mt-6 pb-4 text-center text-xs text-muted-foreground">
         Resultados históricos não garantem desempenho futuro. Tudo aqui é simulação.
       </p>
+      <BottomNav />
     </main>
   );
 }

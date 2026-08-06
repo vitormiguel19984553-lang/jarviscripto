@@ -1,10 +1,4 @@
-export function Sparkline({
-  data,
-  positive,
-}: {
-  data: number[];
-  positive: boolean;
-}) {
+export function Sparkline({ data, positive }: { data: number[]; positive: boolean }) {
   if (!data.length) return null;
   const min = Math.min(...data);
   const max = Math.max(...data);
@@ -27,11 +21,7 @@ export function Sparkline({
         strokeWidth={1.2}
         vectorEffect="non-scaling-stroke"
       />
-      <polygon
-        points={`0,30 ${pts} 100,30`}
-        fill={stroke}
-        opacity={0.12}
-      />
+      <polygon points={`0,30 ${pts} 100,30`} fill={stroke} opacity={0.12} />
     </svg>
   );
 }

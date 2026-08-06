@@ -13,6 +13,7 @@ import { Route as PlanosRouteImport } from './routes/planos'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiMarketsRouteImport } from './routes/api/markets'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -41,6 +42,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarketsRoute = ApiMarketsRouteImport.update({
+  id: '/api/markets',
+  path: '/api/markets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/markets': typeof ApiMarketsRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/chat/': typeof AuthenticatedChatIndexRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/markets': typeof ApiMarketsRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/chat': typeof AuthenticatedChatIndexRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/markets': typeof ApiMarketsRoute
   '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/watchlist'
     | '/api/chat'
+    | '/api/markets'
     | '/chat/$threadId'
     | '/api/public/bot-tick'
     | '/chat/'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/watchlist'
     | '/api/chat'
+    | '/api/markets'
     | '/chat/$threadId'
     | '/api/public/bot-tick'
     | '/chat'
@@ -186,6 +197,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/watchlist'
     | '/api/chat'
+    | '/api/markets'
     | '/_authenticated/chat/$threadId'
     | '/api/public/bot-tick'
     | '/_authenticated/chat/'
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   PlanosRoute: typeof PlanosRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiMarketsRoute: typeof ApiMarketsRoute
   ApiPublicBotTickRoute: typeof ApiPublicBotTickRoute
 }
 
@@ -228,6 +241,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/markets': {
+      id: '/api/markets'
+      path: '/api/markets'
+      fullPath: '/api/markets'
+      preLoaderRoute: typeof ApiMarketsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -334,18 +354,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   PlanosRoute: PlanosRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiMarketsRoute: ApiMarketsRoute,
   ApiPublicBotTickRoute: ApiPublicBotTickRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

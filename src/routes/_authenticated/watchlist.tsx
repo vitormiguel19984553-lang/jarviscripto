@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { JarvisNav } from "@/components/JarvisNav";
+import { BottomNav } from "@/components/BottomNav";
 import { Sparkline } from "@/components/Sparkline";
 import { eur, fetchMarkets, pct } from "@/lib/market";
 import {
@@ -46,8 +47,15 @@ function WatchlistPage() {
     price: "",
   });
 
-  const markets = useQuery({ queryKey: ["markets"], queryFn: fetchMarkets, refetchInterval: 60_000 });
-  const watch = useQuery({ queryKey: ["watchlist", user.id], queryFn: () => listWatchlist(user.id) });
+  const markets = useQuery({
+    queryKey: ["markets"],
+    queryFn: fetchMarkets,
+    refetchInterval: 60_000,
+  });
+  const watch = useQuery({
+    queryKey: ["watchlist", user.id],
+    queryFn: () => listWatchlist(user.id),
+  });
   const alerts = useQuery({
     queryKey: ["price-alerts", user.id],
     queryFn: () => listPriceAlerts(user.id),
@@ -92,7 +100,7 @@ function WatchlistPage() {
   const refreshAlerts = () => qc.invalidateQueries({ queryKey: ["price-alerts", user.id] });
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
           <h1 className="text-xl text-glow sm:text-2xl">WATCHLIST</h1>
@@ -100,7 +108,9 @@ function WatchlistPage() {
             Moedas favoritas e alertas de preço · verificação automática na cloud
           </p>
         </div>
-        <JarvisNav />
+        <div className="hidden md:block">
+          <JarvisNav />
+        </div>
       </header>
 
       <section className="mt-6">
@@ -127,7 +137,9 @@ function WatchlistPage() {
                 <button
                   type="button"
                   onClick={() => toggleFavorite(c.id)}
-                  aria-label={fav ? `Remover ${c.name} da watchlist` : `Adicionar ${c.name} à watchlist`}
+                  aria-label={
+                    fav ? `Remover ${c.name} da watchlist` : `Adicionar ${c.name} à watchlist`
+                  }
                   className={`shrink-0 rounded-md border px-2 py-1 font-display text-[11px] tracking-widest transition-colors ${
                     fav
                       ? "border-primary/60 bg-primary/10 text-primary"
@@ -253,6 +265,7 @@ function WatchlistPage() {
           </ul>
         </div>
       </section>
+      <BottomNav />
     </main>
   );
 }
