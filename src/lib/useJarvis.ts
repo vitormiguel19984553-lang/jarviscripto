@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { type Coin, analyse } from "@/lib/market";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -17,6 +18,10 @@ import {
   type SymbolStat,
 } from "@/lib/strategy";
 import { sizeForWeight, thresholdForSymbol } from "@/lib/learning";
+import { patternFor, reviseConfidence, type MemoryRow } from "@/lib/brain";
+import { loadPatternMemory, recordPattern } from "@/lib/brainStore";
+import { limitsFor, type PlanTier } from "@/lib/plans";
+import { loadPlan } from "@/lib/planStore";
 import {
   defaultProtection,
   exitLabels,
@@ -61,6 +66,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<StrategyState>(defaultStrategy);
   const [symbolStats, setSymbolStats] = useState<SymbolStat[]>([]);
+  const [plan, setPlan] = useState<PlanTier>("normal");
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
@@ -71,6 +77,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const strategyRef = useRef<StrategyState>(defaultStrategy);
   const statsRef = useRef<Map<string, SymbolStat>>(new Map());
   const pnlHistoryRef = useRef<number[]>([]);
+  const planRef = useRef<PlanTier>("normal");
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
@@ -82,6 +89,16 @@ export function useJarvis(userId: string, coins: Coin[]) {
     loadAlertSettings(userId)
       .then((s) => {
         if (active) alertsRef.current = s;
+      })
+      .catch(() => undefined);
+    loadPlan(userId)
+      .then((p) => {
+        if (!active) return;
+        planRef.current = p;
+        setPlan(p);
+        // O plano limita a duração máxima da automação no browser.
+        const allowed = limitsFor(p).clientHours;
+        setDurationHours((h) => (allowed.includes(h) ? h : allowed[allowed.length - 1]));
       })
       .catch(() => undefined);
     Promise.all([loadStrategy(userId), loadSymbolStats(userId)])
@@ -197,6 +214,12 @@ export function useJarvis(userId: string, coins: Coin[]) {
 
   const toggleCoin = (id: string) => {
     setSelected((s) => {
+      if (!s.includes(id) && s.length >= limitsFor(planRef.current).maxCoins) {
+        toast.error(
+          `O plano ${limitsFor(planRef.current).label} permite até ${limitsFor(planRef.current).maxCoins} moedas em simultâneo.`,
+        );
+        return s;
+      }
       const next = s.includes(id) ? s.filter((x) => x !== id) : [...s, id];
       void persistSettings({ selected_coins: next });
       return next;
@@ -265,7 +288,43 @@ export function useJarvis(userId: string, coins: Coin[]) {
       const st = strategyRef.current;
       const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
       // A IA só executa se o sinal superar o limite aprendido para esta moeda.
-      if (signal.confidence < thresholdForSymbol(st.min_confidence, stat.weight)) return;
+      const threshold = thresholdForSymbol(st.min_confidence, stat.weight);
+      if (signal.confidence < threshold) return;
+
+      // Cérebro da IA: consultar a memória de padrões antes de decidir.
+      const pattern = patternFor(signal, coin);
+      let memory: MemoryRow | null = null;
+      let memoryNote = "";
+      let confidence = signal.confidence;
+      try {
+        const mem = await loadPatternMemory(userId, pattern);
+        memory = mem.own;
+        const revised = reviseConfidence(signal.confidence, mem.own, mem.global);
+        confidence = revised.confidence;
+        memoryNote = revised.note;
+      } catch {
+        /* a memória nunca bloqueia a operação */
+      }
+      if (confidence < threshold) {
+        if (memoryNote) {
+          setLogs((l) =>
+            [
+              {
+                id: `mem-${Date.now()}`,
+                time: new Date(),
+                symbol,
+                action: "VENDA" as const,
+                amount: 0,
+                pnl: 0,
+                confidence,
+                reason: `Entrada evitada — ${memoryNote}.`,
+              },
+              ...l,
+            ].slice(0, 100),
+          );
+        }
+        return;
+      }
 
       const r = riskRef.current;
       const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
@@ -274,12 +333,14 @@ export function useJarvis(userId: string, coins: Coin[]) {
       // trailing stop, conforme o caminho simulado do preço.
       const sim = simulateProtectedTrade(
         amount,
-        signal.confidence / 100,
+        confidence / 100,
         protectionRef.current,
         Math.max(0.2, Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6)),
       );
       const pnl = Number(Math.max(-r.maxLossPerTrade, sim.pnl).toFixed(2));
-      const exitReason = `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)`;
+      const exitReason =
+        `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)` +
+        (memoryNote ? ` · ${memoryNote}` : "");
 
       if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
         setRunning(false);
@@ -302,7 +363,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           userId,
           kind: "trade",
           title: `${action} ${coin.symbol.toUpperCase()} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
-          body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${exitReason}`,
+          body: `Ordem simulada de ${amount}€ com confiança ${confidence}%. ${exitReason}`,
         }).catch(() => undefined);
       }
 
@@ -314,7 +375,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           action,
           amount,
           pnl,
-          confidence: signal.confidence,
+          confidence,
           reason: exitReason,
         })
         .select()
@@ -339,7 +400,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
               action,
               amount,
               pnl,
-              confidence: signal.confidence,
+              confidence,
               reason: exitReason,
             },
             ...l,
@@ -364,6 +425,13 @@ export function useJarvis(userId: string, coins: Coin[]) {
         setSymbolStats([...statsRef.current.values()]);
       } catch {
         /* aprendizagem não bloqueia a operação */
+      }
+
+      // Memória: guardar o resultado deste padrão para decisões futuras.
+      try {
+        await recordPattern(userId, pattern, memory, pnl);
+      } catch {
+        /* memória não bloqueia a operação */
       }
 
     }, 4000);
@@ -417,6 +485,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     symbolStats,
     protection,
     setProtection: updateProtection,
+    plan,
+    limits: limitsFor(plan),
 
   };
 }
