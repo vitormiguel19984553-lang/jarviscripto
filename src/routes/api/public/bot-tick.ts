@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { analyse, fetchMarkets, type Coin } from "@/lib/market";
+import { analyse, fetchMarketsFromSource, type Coin } from "@/lib/market";
+import { applyOutcome, emptyRow, patternFor, reviseConfidence, type MemoryRow } from "@/lib/brain";
+import { limitsFor } from "@/lib/plans";
 import { simulateProtectedTrade, exitLabels } from "@/lib/protection";
 import {
   nextMinConfidence,
@@ -8,6 +10,7 @@ import {
   sizeForWeight,
   thresholdForSymbol,
 } from "@/lib/learning";
+import type { Opinion } from "@/lib/second-opinion.server";
 
 /**
  * Executa um "tick" da automação no servidor para todos os utilizadores com o
@@ -38,7 +41,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
         let coins: Coin[] = [];
         try {
-          coins = await fetchMarkets();
+          coins = await fetchMarketsFromSource();
         } catch {
           return Response.json({ error: "market_unavailable" }, { status: 502 });
         }
@@ -85,7 +88,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         // Contas desativadas pelo admin não operam.
         const { data: profiles } = await supabaseAdmin
           .from("profiles")
-          .select("id,is_active")
+          .select("id,is_active,plan")
           .in(
             "id",
             rows.map((r) => r.user_id),
@@ -93,6 +96,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         const inactive = new Set(
           (profiles ?? []).filter((p) => p.is_active === false).map((p) => p.id),
         );
+        const planById = new Map((profiles ?? []).map((p) => [p.id, p.plan]));
 
         // Limites globais de risco definidos pelo admin.
         const { data: platform } = await supabaseAdmin
@@ -116,7 +120,9 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
         for (const s of rows) {
           if (inactive.has(s.user_id)) continue;
-          const selected: string[] = s.selected_coins ?? [];
+          const limits = limitsFor(planById.get(s.user_id));
+          // O plano do utilizador limita quantas moedas a automação vigia.
+          const selected: string[] = (s.selected_coins ?? []).slice(0, limits.maxCoins);
           const pool = coins.filter((c) => selected.includes(c.id));
           if (!pool.length) continue;
 
@@ -160,7 +166,60 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             weight: Number(stat?.weight ?? 1),
           };
 
-          if (signal.confidence < thresholdForSymbol(learn.min_confidence, sym.weight)) {
+          const threshold = thresholdForSymbol(learn.min_confidence, sym.weight);
+          if (signal.confidence < threshold) {
+            await supabaseAdmin
+              .from("bot_settings")
+              .update({ last_tick_at: nowIso })
+              .eq("user_id", s.user_id);
+            continue;
+          }
+
+          // ── Cérebro da IA: memória de padrões ─────────────────────────────
+          const pattern = patternFor(signal, coin);
+          const [{ data: memOwn }, { data: memGlobal }] = await Promise.all([
+            supabaseAdmin
+              .from("ia_memoria")
+              .select("pattern_key,description,trades,wins,losses,total_pnl,confidence_penalty")
+              .eq("user_id", s.user_id)
+              .eq("pattern_key", pattern.key)
+              .maybeSingle(),
+            supabaseAdmin
+              .from("ia_memoria_global")
+              .select("pattern_key,description,trades,wins,losses,total_pnl,confidence_penalty")
+              .eq("pattern_key", pattern.key)
+              .maybeSingle(),
+          ]);
+          const asRow = (r: typeof memOwn): MemoryRow | null =>
+            r
+              ? {
+                  pattern_key: r.pattern_key,
+                  description: r.description,
+                  trades: r.trades,
+                  wins: r.wins,
+                  losses: r.losses,
+                  total_pnl: Number(r.total_pnl),
+                  confidence_penalty: Number(r.confidence_penalty),
+                }
+              : null;
+          const ownRow = asRow(memOwn);
+          const revised = reviseConfidence(
+            signal.confidence,
+            ownRow,
+            asRow(memGlobal as typeof memOwn),
+          );
+          let confidence = revised.confidence;
+          const memoryNote = revised.note;
+          if (confidence < threshold) {
+            await supabaseAdmin.from("ia_pareceres").insert({
+              user_id: s.user_id,
+              symbol,
+              model: "memoria-ia",
+              verdict: "evitado",
+              rationale: `Entrada evitada — ${memoryNote}.`,
+              confidence_before: signal.confidence,
+              confidence_after: confidence,
+            });
             await supabaseAdmin
               .from("bot_settings")
               .update({ last_tick_at: nowIso })
@@ -174,10 +233,47 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
           const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
-          const amount = sizeForWeight(baseAmount, sym.weight);
+          let amount = sizeForWeight(baseAmount, sym.weight);
+
+          // ── Segunda opinião entre IAs (planos Pro Max e Enterprise) ───────
+          let opinion: Opinion = {
+            model: "sem-revisao",
+            verdict: "sem_revisao",
+            rationale: "Segunda opinião disponível nos planos Pro Max e Enterprise.",
+          };
+          const aiKey = process.env.LOVABLE_API_KEY;
+          if (limits.secondOpinion && aiKey) {
+            const { secondOpinion, applyVerdict } = await import("@/lib/second-opinion.server");
+            opinion = await secondOpinion({
+              apiKey: aiKey,
+              symbol,
+              action: signal.action,
+              confidence,
+              reason: signal.reason,
+              memoryNote,
+            });
+            const effect = applyVerdict(opinion.verdict, amount, confidence);
+            if (effect.requiredConfidence > 0 && confidence < effect.requiredConfidence) {
+              await supabaseAdmin.from("ia_pareceres").insert({
+                user_id: s.user_id,
+                symbol,
+                model: opinion.model,
+                verdict: opinion.verdict,
+                rationale: `${opinion.rationale} (entrada travada pela revisão cruzada)`,
+                confidence_before: signal.confidence,
+                confidence_after: confidence,
+              });
+              await supabaseAdmin
+                .from("bot_settings")
+                .update({ last_tick_at: nowIso })
+                .eq("user_id", s.user_id);
+              continue;
+            }
+            amount = effect.amount;
+          }
           const sim = simulateProtectedTrade(
             amount,
-            signal.confidence / 100,
+            confidence / 100,
             {
               takeProfitPct: Number(s.take_profit_pct ?? 2.5),
               stopLossPct: Number(s.stop_loss_pct ?? 1.5),
@@ -186,7 +282,10 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             Math.max(0.2, Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6)),
           );
           const pnl = Number(Math.max(-maxLossTrade, sim.pnl).toFixed(2));
-          const exitReason = `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)`;
+          const exitReason =
+            `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)` +
+            (memoryNote ? ` · ${memoryNote}` : "") +
+            (opinion.verdict !== "sem_revisao" ? ` · 2ª IA: ${opinion.verdict}` : "");
 
           const { data: prefs } = await supabaseAdmin
             .from("alert_settings")
@@ -213,15 +312,67 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           const action = signal.action === "COMPRAR" ? "COMPRA" : "VENDA";
 
-          await supabaseAdmin.from("trades").insert({
+          const { data: tradeRow } = await supabaseAdmin
+            .from("trades")
+            .insert({
+              user_id: s.user_id,
+              symbol,
+              action,
+              amount,
+              pnl,
+              confidence,
+              reason: exitReason,
+            })
+            .select("id")
+            .maybeSingle();
+
+          // Registar o parecer da segunda IA (ou a ausência dele) neste trade.
+          await supabaseAdmin.from("ia_pareceres").insert({
             user_id: s.user_id,
+            trade_id: tradeRow?.id ?? null,
             symbol,
-            action,
-            amount,
-            pnl,
-            confidence: signal.confidence,
-            reason: exitReason,
+            model: opinion.model,
+            verdict: opinion.verdict,
+            rationale: opinion.rationale,
+            confidence_before: signal.confidence,
+            confidence_after: confidence,
           });
+
+          // Memória da IA: guardar o resultado deste padrão (pessoal + agregado).
+          const nextMem = applyOutcome(ownRow ?? emptyRow(pattern), pnl);
+          const globalRow = asRow(memGlobal as typeof memOwn);
+          const nextGlobal = applyOutcome(globalRow ?? emptyRow(pattern), pnl);
+          await Promise.all([
+            supabaseAdmin.from("ia_memoria").upsert(
+              {
+                user_id: s.user_id,
+                pattern_key: nextMem.pattern_key,
+                description: nextMem.description || pattern.description,
+                trades: nextMem.trades,
+                wins: nextMem.wins,
+                losses: nextMem.losses,
+                total_pnl: nextMem.total_pnl,
+                confidence_penalty: nextMem.confidence_penalty,
+                last_seen_at: nowIso,
+                updated_at: nowIso,
+              },
+              { onConflict: "user_id,pattern_key" },
+            ),
+            supabaseAdmin.from("ia_memoria_global").upsert(
+              {
+                pattern_key: nextGlobal.pattern_key,
+                description: nextGlobal.description || pattern.description,
+                trades: nextGlobal.trades,
+                wins: nextGlobal.wins,
+                losses: nextGlobal.losses,
+                total_pnl: nextGlobal.total_pnl,
+                confidence_penalty: nextGlobal.confidence_penalty,
+                last_seen_at: nowIso,
+                updated_at: nowIso,
+              },
+              { onConflict: "pattern_key" },
+            ),
+          ]);
 
           const { data: wallet } = await supabaseAdmin
             .from("wallets")
@@ -297,7 +448,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               user_id: s.user_id,
               kind: "trade",
               title: `${action} ${symbol} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€ (servidor)`,
-              body: `Ordem simulada de ${amount}€ com confiança ${signal.confidence}%. ${signal.reason}`,
+              body: `Ordem simulada de ${amount}€ com confiança ${confidence}%. ${exitReason}`,
             });
           }
 
