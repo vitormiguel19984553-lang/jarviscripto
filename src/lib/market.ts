@@ -21,7 +21,10 @@ const COINS = [
   "polkadot",
 ];
 
-export async function fetchMarkets(): Promise<Coin[]> {
+export const MARKET_COINS = COINS;
+
+/** Chamada directa à fonte (só para uso no servidor). */
+export async function fetchMarketsFromSource(): Promise<Coin[]> {
   const url =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids=" +
     COINS.join(",") +
@@ -30,6 +33,26 @@ export async function fetchMarkets(): Promise<Coin[]> {
   if (!res.ok) throw new Error("Falha ao obter dados de mercado");
   return res.json();
 }
+
+/**
+ * Frontend: passa pelo proxy do servidor (`/api/markets`), que tem cache e
+ * devolve um erro claro em vez de falhar em silêncio.
+ */
+export async function fetchMarkets(): Promise<Coin[]> {
+  const res = await fetch("/api/markets", { headers: { accept: "application/json" } });
+  if (!res.ok) {
+    let message = "Sinais indisponíveis. A tentar novamente…";
+    try {
+      const body = (await res.json()) as { message?: string };
+      if (body?.message) message = body.message;
+    } catch {
+      /* resposta sem corpo utilizável */
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
 
 export const eur = (v: number) =>
   new Intl.NumberFormat("pt-PT", {
