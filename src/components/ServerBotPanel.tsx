@@ -2,7 +2,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
 
-export function ServerBotPanel({ userId }: { userId: string }) {
+export function ServerBotPanel({
+  userId,
+  hours = [6, 12, 24, 72],
+  planLabel,
+}: {
+  userId: string;
+  hours?: number[];
+  planLabel?: string;
+}) {
   const qc = useQueryClient();
   const state = useQuery({
     queryKey: ["server-bot", userId],
@@ -49,10 +57,11 @@ export function ServerBotPanel({ userId }: { userId: string }) {
       <p className="mt-1 text-xs text-muted-foreground">
         O Jarvis continua a analisar e a registar operações simuladas mesmo com o browser fechado,
         usando as tuas moedas e limites de risco.
+        {planLabel ? ` Duração máxima do plano ${planLabel}: ${hours[hours.length - 1]}h.` : ""}
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[6, 12, 24, 72].map((h) => (
+        {hours.map((h) => (
           <button
             key={h}
             onClick={() => start(h)}
