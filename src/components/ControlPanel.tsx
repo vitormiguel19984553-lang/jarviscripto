@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
+import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
 
 type Engine = ReturnType<typeof useJarvis>;
 
