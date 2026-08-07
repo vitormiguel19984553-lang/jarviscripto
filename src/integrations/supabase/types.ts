@@ -97,6 +97,7 @@ export type Database = {
       }
       bot_settings: {
         Row: {
+          aggression: string
           auto_run: boolean
           day_loss: number
           day_loss_date: string
@@ -114,6 +115,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          aggression?: string
           auto_run?: boolean
           day_loss?: number
           day_loss_date?: string
@@ -131,6 +133,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          aggression?: string
           auto_run?: boolean
           day_loss?: number
           day_loss_date?: string
