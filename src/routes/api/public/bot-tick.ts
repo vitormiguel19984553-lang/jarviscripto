@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { analyse, fetchMarketsFromSource, type Coin } from "@/lib/market";
+import { analyse, type Coin } from "@/lib/market";
+import { fetchMarketsFromSource } from "@/lib/market-source";
 import { applyOutcome, emptyRow, patternFor, reviseConfidence, type MemoryRow } from "@/lib/brain";
 import { limitsFor } from "@/lib/plans";
 import { simulateProtectedTrade, exitLabels } from "@/lib/protection";

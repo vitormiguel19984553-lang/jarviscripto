@@ -23,9 +23,6 @@ const COINS = [
 
 export const MARKET_COINS = COINS;
 
-/** Chamada directa à fonte de dados (só servidor) — ver `market-source.ts`. */
-export { fetchMarketsFromSource } from "@/lib/market-source";
-
 
 /**
  * Frontend: passa pelo proxy do servidor (`/api/markets`), que tem cache e
