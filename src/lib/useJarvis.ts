@@ -23,6 +23,13 @@ import { loadPatternMemory, recordPattern } from "@/lib/brainStore";
 import { limitsFor, type PlanTier } from "@/lib/plans";
 import { loadPlan } from "@/lib/planStore";
 import {
+  amountWithAggression,
+  instantLearningPenalty,
+  passesAggression,
+  thresholdWithAggression,
+  type Aggression,
+} from "@/lib/aggression";
+import {
   defaultProtection,
   exitLabels,
   simulateProtectedTrade,
@@ -61,6 +68,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   });
   const [halted, setHalted] = useState(false);
   const [protection, setProtection] = useState<Protection>(defaultProtection);
+  const [aggression, setAggression] = useState<Aggression>("moderado");
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<StrategyState>(defaultStrategy);
   const [symbolStats, setSymbolStats] = useState<SymbolStat[]>([]);
@@ -71,6 +79,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const selRef = useRef(selected);
   const riskRef = useRef(risk);
   const protectionRef = useRef(protection);
+  const aggressionRef = useRef<Aggression>("moderado");
   const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
   const strategyRef = useRef<StrategyState>(defaultStrategy);
   const statsRef = useRef<Map<string, SymbolStat>>(new Map());
@@ -80,6 +89,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
   selRef.current = selected;
   riskRef.current = risk;
   protectionRef.current = protection;
+  aggressionRef.current = aggression;
 
   useEffect(() => {
     let active = true;
@@ -145,6 +155,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           maxLossPerTrade: Number(settings.data.max_loss_trade),
           maxLossPerDay: Number(settings.data.max_loss_day),
         });
+        setAggression((settings.data.aggression as Aggression) ?? "moderado");
         setProtection({
           takeProfitPct: Number(settings.data.take_profit_pct ?? defaultProtection.takeProfitPct),
           stopLossPct: Number(settings.data.stop_loss_pct ?? defaultProtection.stopLossPct),
@@ -236,6 +247,11 @@ export function useJarvis(userId: string, coins: Coin[]) {
     });
   };
 
+  const updateAggression = (next: Aggression) => {
+    setAggression(next);
+    void persistSettings({ aggression: next });
+  };
+
   const updateDuration = (h: number) => {
     setDurationHours(h);
     void persistSettings({ duration_hours: h });
@@ -275,12 +291,17 @@ export function useJarvis(userId: string, coins: Coin[]) {
       const coin = pool[Math.floor(Math.random() * pool.length)];
       const signal = analyse(coin);
       if (signal.action === "AGUARDAR") return;
+      // Modo de agressividade: filtra o sinal antes de qualquer decisão.
+      if (!passesAggression(signal, aggressionRef.current)) return;
 
       const symbol = coin.symbol.toUpperCase();
       const st = strategyRef.current;
       const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
       // A IA só executa se o sinal superar o limite aprendido para esta moeda.
-      const threshold = thresholdForSymbol(st.min_confidence, stat.weight);
+      const threshold = thresholdWithAggression(
+        thresholdForSymbol(st.min_confidence, stat.weight),
+        aggressionRef.current,
+      );
       if (signal.confidence < threshold) return;
 
       // Cérebro da IA: consultar a memória de padrões antes de decidir.
@@ -320,7 +341,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
 
       const r = riskRef.current;
       const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
-      const amount = sizeForWeight(base, stat.weight);
+      const amount = amountWithAggression(
+        sizeForWeight(base, stat.weight),
+        aggressionRef.current,
+      );
       // Proteções de ordem: a saída acontece no take profit, stop loss ou
       // trailing stop, conforme o caminho simulado do preço.
       const sim = simulateProtectedTrade(
@@ -411,6 +435,14 @@ export function useJarvis(userId: string, coins: Coin[]) {
           state: strategyRef.current,
           stat,
         });
+        // Modo agressivo: aprendizagem imediata — cada perda sobe logo a fasquia.
+        const extra = instantLearningPenalty(aggressionRef.current, pnl);
+        if (extra) {
+          res.state = {
+            ...res.state,
+            min_confidence: Math.min(90, res.state.min_confidence + extra),
+          };
+        }
         strategyRef.current = res.state;
         statsRef.current.set(symbol, res.stat);
         setStrategy(res.state);
@@ -476,6 +508,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     symbolStats,
     protection,
     setProtection: updateProtection,
+    aggression,
+    setAggression: updateAggression,
     plan,
     limits: limitsFor(plan),
   };
