@@ -12,6 +12,12 @@ import {
   thresholdForSymbol,
 } from "@/lib/learning";
 import type { Opinion } from "@/lib/second-opinion.server";
+import {
+  amountWithAggression,
+  instantLearningPenalty,
+  passesAggression,
+  thresholdWithAggression,
+} from "@/lib/aggression";
 
 /**
  * Executa um "tick" da automação no servidor para todos os utilizadores com o
@@ -128,7 +134,8 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           const coin = pool[Math.floor(Math.random() * pool.length)];
           const signal = analyse(coin);
-          if (signal.action === "AGUARDAR") {
+          const aggression = (s as { aggression?: string }).aggression ?? "moderado";
+          if (signal.action === "AGUARDAR" || !passesAggression(signal, aggression)) {
             await supabaseAdmin
               .from("bot_settings")
               .update({ last_tick_at: nowIso })
@@ -166,7 +173,10 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             weight: Number(stat?.weight ?? 1),
           };
 
-          const threshold = thresholdForSymbol(learn.min_confidence, sym.weight);
+          const threshold = thresholdWithAggression(
+            thresholdForSymbol(learn.min_confidence, sym.weight),
+            aggression,
+          );
           if (signal.confidence < threshold) {
             await supabaseAdmin
               .from("bot_settings")
@@ -233,7 +243,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
           const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
-          let amount = sizeForWeight(baseAmount, sym.weight);
+          let amount = amountWithAggression(sizeForWeight(baseAmount, sym.weight), aggression);
 
           // ── Segunda opinião entre IAs (planos Pro Max e Enterprise) ───────
           let opinion: Opinion = {
@@ -411,11 +421,14 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const sharpe = sharpeRatio((recent ?? []).map((t) => Number(t.pnl)));
           const lTrades = learn.trades + 1;
           const lWins = learn.wins + (pnl > 0 ? 1 : 0);
-          const minConfidence = nextMinConfidence(learn.min_confidence, {
-            trades: lTrades,
-            wins: lWins,
-            sharpe,
-          });
+          const minConfidence = Math.min(
+            90,
+            nextMinConfidence(learn.min_confidence, {
+              trades: lTrades,
+              wins: lWins,
+              sharpe,
+            }) + instantLearningPenalty(aggression, pnl),
+          );
           await Promise.all([
             supabaseAdmin.from("strategy_state").upsert(
               {
