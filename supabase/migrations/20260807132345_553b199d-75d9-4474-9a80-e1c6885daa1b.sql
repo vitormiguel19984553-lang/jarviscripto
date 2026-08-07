@@ -1,0 +1,2 @@
+ALTER TABLE public.bot_settings ADD COLUMN IF NOT EXISTS aggression TEXT NOT NULL DEFAULT 'moderado';
+ALTER TABLE public.bot_settings ADD CONSTRAINT bot_settings_aggression_check CHECK (aggression IN ('passivo','moderado','agressivo'));

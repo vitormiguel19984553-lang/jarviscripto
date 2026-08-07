@@ -23,16 +23,6 @@ const COINS = [
 
 export const MARKET_COINS = COINS;
 
-/** Chamada directa à fonte (só para uso no servidor). */
-export async function fetchMarketsFromSource(): Promise<Coin[]> {
-  const url =
-    "https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids=" +
-    COINS.join(",") +
-    "&sparkline=true&price_change_percentage=24h";
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Falha ao obter dados de mercado");
-  return res.json();
-}
 
 /**
  * Frontend: passa pelo proxy do servidor (`/api/markets`), que tem cache e

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
+import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
 
 type Engine = ReturnType<typeof useJarvis>;
 
@@ -40,7 +41,38 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
           {selectedCount} de {engine.limits.maxCoins} moeda(s) · plano {engine.limits.label}
         </p>
 
+        <div className="mt-4">
+          <span className="text-[11px] uppercase tracking-widest text-muted-foreground">
+            Modo da IA
+          </span>
+          <div className="mt-1 grid grid-cols-3 gap-1.5">
+            {AGGRESSION_LIST.map((m) => {
+              const p = aggressionProfiles[m];
+              const on = engine.aggression === m;
+              return (
+                <button
+                  key={m}
+                  onClick={() => engine.setAggression(m)}
+                  aria-pressed={on}
+                  className={`rounded-md border px-2 py-2 font-display text-[10px] tracking-widest transition-all ${
+                    on
+                      ? "border-primary/70 bg-primary/15 text-primary shadow-[0_0_18px_-6px_var(--primary)]"
+                      : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+            {aggressionProfiles[engine.aggression].description} O limite de perda diária aplica-se
+            em qualquer modo.
+          </p>
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2">
+
           {engine.limits.clientHours.map((h) => (
             <button
               key={h}
