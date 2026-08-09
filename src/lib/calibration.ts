@@ -52,9 +52,7 @@ export function calibration(logs: TradeLog[]): {
 
   const withData = buckets.filter((b) => b.trades >= 2);
   const error = withData.length
-    ? Number(
-        (withData.reduce((a, b) => a + Math.abs(b.gap), 0) / withData.length).toFixed(1),
-      )
+    ? Number((withData.reduce((a, b) => a + Math.abs(b.gap), 0) / withData.length).toFixed(1))
     : 0;
 
   return { buckets, trades: real.length, error };

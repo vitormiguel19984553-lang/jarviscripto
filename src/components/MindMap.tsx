@@ -158,9 +158,7 @@ export function MindMap({
                   strokeOpacity={live ? 0.85 : 0.4}
                   strokeDasharray={live ? "8 10" : "3 8"}
                   style={
-                    live && running
-                      ? { animation: "hud-dash 2.4s linear infinite" }
-                      : undefined
+                    live && running ? { animation: "hud-dash 2.4s linear infinite" } : undefined
                   }
                 />
               </g>

@@ -40,7 +40,6 @@ function FeedbackToggles() {
   );
 }
 
-
 function Field({
   label,
   value,
@@ -108,7 +107,6 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-
           {engine.limits.clientHours.map((h) => (
             <button
               key={h}
