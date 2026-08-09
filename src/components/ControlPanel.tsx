@@ -99,14 +99,11 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
           <button
             onClick={() => (engine.running ? engine.setRunning(false) : engine.start())}
             disabled={!selectedCount}
-            className="rounded-md bg-primary px-3 py-2 font-display text-xs text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="hud-btn hud-btn-primary px-3 py-2.5 text-xs"
           >
             {engine.running ? "PAUSAR" : "ATIVAR IA"}
           </button>
-          <button
-            onClick={engine.stopAll}
-            className="rounded-md border border-destructive/60 bg-destructive/15 px-3 py-2 font-display text-xs text-destructive transition-colors hover:bg-destructive/25"
-          >
+          <button onClick={engine.stopAll} className="hud-btn hud-btn-danger px-3 py-2.5 text-xs">
             PARAGEM DE EMERGÊNCIA
           </button>
         </div>
@@ -184,31 +181,33 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             onClick={() => engine.transfer(amount, true)}
-            className="rounded-md border border-primary/50 bg-primary/10 px-3 py-2 font-display text-xs text-primary hover:bg-primary/20"
+            className="hud-btn hud-btn-ghost px-3 py-2 text-xs text-primary"
           >
             PARA INVESTIMENTO
           </button>
           <button
             onClick={() => engine.transfer(amount, false)}
-            className="rounded-md border border-border bg-secondary/60 px-3 py-2 font-display text-xs hover:bg-secondary"
+            className="hud-btn hud-btn-ghost px-3 py-2 text-xs"
           >
             PARA DISPONÍVEL
           </button>
           <button
             onClick={() => engine.deposit(amount)}
-            className="rounded-md border border-success/50 bg-success/10 px-3 py-2 font-display text-xs text-success hover:bg-success/20"
+            className="hud-btn hud-btn-accent px-3 py-2 text-xs"
           >
             DEPOSITAR
           </button>
           <button
             disabled
             aria-disabled="true"
-            className="cursor-not-allowed rounded-md border border-border bg-secondary/30 px-3 py-2 font-display text-xs text-muted-foreground opacity-60"
+            className="hud-btn hud-btn-ghost px-3 py-2 text-xs text-muted-foreground"
             title="Levantamentos em breve"
           >
             LEVANTAR · EM BREVE
           </button>
         </div>
+
+        <FeedbackToggles />
       </section>
     </div>
   );
