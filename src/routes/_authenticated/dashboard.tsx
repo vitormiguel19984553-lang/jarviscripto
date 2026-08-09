@@ -12,6 +12,10 @@ import { BottomNav } from "@/components/BottomNav";
 import { ServerBotPanel } from "@/components/ServerBotPanel";
 import { LearningPanel } from "@/components/LearningPanel";
 import { BrainPanel } from "@/components/BrainPanel";
+import { MindMap } from "@/components/MindMap";
+import { CalibrationPanel } from "@/components/CalibrationPanel";
+import { SecondOpinionFeed } from "@/components/SecondOpinionFeed";
+import { CoinCompare } from "@/components/CoinCompare";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -34,6 +38,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 const tabs = [
   { id: "mercado", label: "MERCADO" },
+  { id: "mapa", label: "MAPA MENTAL" },
   { id: "automacao", label: "AUTOMAÇÃO" },
   { id: "cerebro", label: "CÉREBRO" },
   { id: "logs", label: "LOGS" },
@@ -71,7 +76,7 @@ function ProfileMenu({
           <p className="mt-1 text-[11px] text-muted-foreground">Plano {plan} · modo simulação</p>
           <button
             onClick={onSignOut}
-            className="mt-3 w-full rounded-md border border-border bg-secondary/60 px-3 py-2 font-display text-[11px] hover:bg-secondary"
+            className="hud-btn hud-btn-ghost mt-3 w-full px-3 py-2 text-[11px]"
           >
             SAIR
           </button>
@@ -103,7 +108,7 @@ function Dashboard() {
   };
 
   return (
-    <main className="mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
+    <main className="hud-particles mx-auto max-w-7xl px-4 pb-28 pt-6 sm:px-6 md:pb-10 md:pt-8">
       <header className="hud-panel flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5">
         <div className="flex items-center gap-3 sm:gap-4">
           <div
@@ -126,7 +131,7 @@ function Dashboard() {
 
           <div className="flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1.5">
             <span
-              className={`size-2 rounded-full ${engine.running ? "bg-success" : "bg-muted-foreground"}`}
+              className={`size-2 rounded-full ${engine.running ? "live-dot bg-success" : "bg-muted-foreground"}`}
             />
             <span className="font-display text-[11px] tracking-widest">
               {engine.running ? "IA ATIVA" : "IA EM ESPERA"}
@@ -137,7 +142,7 @@ function Dashboard() {
           </div>
           <button
             onClick={signOut}
-            className="hidden rounded-md border border-border bg-secondary/60 px-3 py-1.5 font-display text-[11px] hover:bg-secondary md:block"
+            className="hud-btn hud-btn-ghost hidden px-3 py-1.5 text-[11px] md:block"
           >
             SAIR
           </button>
@@ -149,9 +154,9 @@ function Dashboard() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-md px-3 py-2 font-display text-[11px] tracking-widest transition-colors ${
+            className={`hud-btn shrink-0 px-3 py-2 text-[11px] ${
               tab === t.id
-                ? "border border-primary/50 bg-primary/10 text-primary"
+                ? "border border-primary/60 bg-primary/15 text-primary shadow-[0_0_20px_-8px_var(--primary)]"
                 : "border border-transparent bg-secondary/40 text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -174,7 +179,7 @@ function Dashboard() {
               </p>
               <button
                 onClick={() => market.refetch()}
-                className="mt-3 rounded-md border border-primary/50 bg-primary/10 px-3 py-2 font-display text-xs text-primary"
+                className="hud-btn hud-btn-ghost mt-3 px-3 py-2 text-xs text-primary"
               >
                 TENTAR NOVAMENTE
               </button>
@@ -191,29 +196,44 @@ function Dashboard() {
               />
             ))}
           </div>
+          <div className="mt-6">
+            <CoinCompare coins={coins} />
+          </div>
         </section>
       )}
 
+      {tab === "mapa" && (
+        <div key="mapa" className="anim-rise mt-5">
+          <MindMap coins={coins} logs={engine.logs} running={engine.running} userId={user.id} />
+        </div>
+      )}
+
       {tab === "automacao" && (
-        <div className="mt-5 space-y-6">
+        <div key="automacao" className="anim-rise mt-5 space-y-6">
           <ControlPanel engine={engine} selectedCount={engine.selected.length} />
           <ServerBotPanel
             userId={user.id}
             hours={[...engine.limits.serverHours]}
             planLabel={engine.limits.label}
           />
+          <SecondOpinionFeed
+            userId={user.id}
+            available={engine.limits.secondOpinion}
+            planLabel={engine.limits.label}
+          />
         </div>
       )}
 
       {tab === "cerebro" && (
-        <div className="mt-5 space-y-6">
+        <div key="cerebro" className="anim-rise mt-5 space-y-6">
           <BrainPanel userId={user.id} />
+          <CalibrationPanel logs={engine.logs} />
           <LearningPanel strategy={engine.strategy} stats={engine.symbolStats} />
         </div>
       )}
 
       {tab === "logs" && (
-        <div className="mt-5">
+        <div key="logs" className="anim-rise mt-5">
           <LogsPanel logs={engine.logs} />
         </div>
       )}
