@@ -96,9 +96,17 @@ export async function fetchMarketsFromSource(): Promise<Coin[]> {
   if (key) {
     try {
       return await fromCoinGecko(key);
-    } catch {
-      /* cai para a Binance */
+    } catch (err) {
+      // Motivo real registado no servidor; só depois se tenta a Binance.
+      console.error("[markets] CoinGecko falhou:", err instanceof Error ? err.message : err);
     }
+  } else {
+    console.warn("[markets] COINGECKO_API_KEY ausente — a usar Binance directamente.");
   }
-  return fromBinance();
+  try {
+    return await fromBinance();
+  } catch (err) {
+    console.error("[markets] Binance falhou:", err instanceof Error ? err.message : err);
+    throw err;
+  }
 }

@@ -25,7 +25,9 @@ export const Route = createFileRoute("/api/markets")({
           return Response.json(payload, {
             headers: { "x-cache": "miss", "cache-control": "public, max-age=30" },
           });
-        } catch {
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          console.error("[api/markets] fonte de mercado indisponível:", reason);
           if (cache) {
             return Response.json(cache.payload, { headers: { "x-cache": "stale" } });
           }
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/api/markets")({
             {
               error: "market_unavailable",
               message: "Não foi possível contactar a fonte de dados de mercado.",
+              reason,
             },
             { status: 502 },
           );
