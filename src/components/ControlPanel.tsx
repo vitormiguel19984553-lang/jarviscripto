@@ -2,8 +2,44 @@ import { useState } from "react";
 import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
 import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
+import { loadFeedback, pulseFeedback, saveFeedback } from "@/lib/feedback";
 
 type Engine = ReturnType<typeof useJarvis>;
+
+/** Som e vibração nos alertas — guardado neste dispositivo. */
+function FeedbackToggles() {
+  const [prefs, setPrefs] = useState(loadFeedback);
+  const set = (patch: Partial<typeof prefs>) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    saveFeedback(next);
+    pulseFeedback("alert", next);
+  };
+  return (
+    <div className="mt-4 rounded-md border border-border bg-secondary/30 p-3">
+      <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
+        Retorno nos alertas
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <button
+          onClick={() => set({ sound: !prefs.sound })}
+          aria-pressed={prefs.sound}
+          className={`hud-btn px-2 py-2 text-[10px] ${prefs.sound ? "hud-btn-primary" : "hud-btn-ghost"}`}
+        >
+          SOM {prefs.sound ? "ON" : "OFF"}
+        </button>
+        <button
+          onClick={() => set({ haptics: !prefs.haptics })}
+          aria-pressed={prefs.haptics}
+          className={`hud-btn px-2 py-2 text-[10px] ${prefs.haptics ? "hud-btn-primary" : "hud-btn-ghost"}`}
+        >
+          VIBRAÇÃO {prefs.haptics ? "ON" : "OFF"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
 function Field({
   label,
