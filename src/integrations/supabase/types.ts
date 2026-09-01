@@ -636,7 +636,7 @@ export type Database = {
       run_bot_tick: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      app_role: "admin" | "moderator" | "user" | "colaborador" | "gerente"
       plan_tier: "normal" | "plus" | "pro_max" | "enterprise"
     }
     CompositeTypes: {
@@ -765,7 +765,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "moderator", "user"],
+      app_role: ["admin", "moderator", "user", "colaborador", "gerente"],
       plan_tier: ["normal", "plus", "pro_max", "enterprise"],
     },
   },
