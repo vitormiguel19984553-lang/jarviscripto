@@ -160,10 +160,13 @@ export function ControlPanel({
 
         <div className="mt-4 rounded-md border border-border bg-secondary/40 p-3 text-center">
           <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
-            Tempo restante
+            Tempo restante {realMode ? "· dinheiro real" : "· simulação"}
           </p>
-          <p className="font-display text-2xl text-glow">{fmtTime(engine.remaining)}</p>
+          <p className="font-display text-2xl text-glow">
+            {fmtTime(realMode ? realRemaining : engine.remaining)}
+          </p>
         </div>
+
 
         {realMode && (
           <p className="mt-3 text-[11px] leading-snug text-destructive">
