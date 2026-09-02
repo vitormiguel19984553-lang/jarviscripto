@@ -132,16 +132,87 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const pool = coins.filter((c) => selected.includes(c.id));
           if (!pool.length) continue;
 
-          const coin = pool[Math.floor(Math.random() * pool.length)];
-          const signal = analyse(coin);
           const aggression = (s as { aggression?: string }).aggression ?? "moderado";
-          if (signal.action === "AGUARDAR" || !passesAggression(signal, aggression)) {
+
+          // ── Modo real: saldo e credenciais lidos uma vez por tick ──────────
+          // Só assim sabemos que entradas são realmente executáveis (comprar
+          // exige saldo em USDT/USDC, vender exige ter a moeda em carteira).
+          type RealCtx = {
+            creds: Awaited<ReturnType<typeof import("@/lib/exchange.server").loadCredentials>>;
+            bal: Awaited<ReturnType<typeof import("@/lib/exchange.server").fetchBalance>>;
+          };
+          let realCtx: RealCtx | null = null;
+          let realBlock: string | null = null;
+          const realAmount = Math.max(
+            5,
+            Number((s as { real_trade_amount?: number }).real_trade_amount ?? 10),
+          );
+          if (s.real_mode) {
+            const { data: conn } = await supabaseAdmin
+              .from("exchange_connections")
+              .select("real_trading_enabled")
+              .eq("user_id", s.user_id)
+              .maybeSingle();
+            if (!conn?.real_trading_enabled) {
+              realBlock = "as operações reais não estão ativadas na página Binance";
+            } else {
+              try {
+                const { loadCredentials, fetchBalance } = await import("@/lib/exchange.server");
+                const creds = await loadCredentials(s.user_id);
+                if (!creds) throw new Error("sem chaves API guardadas");
+                const bal = await fetchBalance(creds);
+                if (!bal.canTrade) {
+                  throw new Error(
+                    "a chave API não tem permissão de Spot Trading — cria uma chave com trading ativo",
+                  );
+                }
+                realCtx = { creds, bal };
+              } catch (e) {
+                realBlock = e instanceof Error ? e.message : "erro ao ler a tua Binance";
+              }
+            }
+          }
+          const freeOf = (a: string) =>
+            realCtx?.bal.assets.find((x) => x.asset === a.toUpperCase())?.free ?? 0;
+          const quote = realCtx && freeOf("USDT") >= realAmount ? "USDT" : "USDC";
+
+          // Analisa todas as moedas vigiadas e escolhe entre as entradas
+          // executáveis (antes só era testada uma moeda ao acaso por tick).
+          const candidates = pool
+            .map((c) => ({ c, signal: analyse(c) }))
+            .filter(
+              ({ signal }) => signal.action !== "AGUARDAR" && passesAggression(signal, aggression),
+            )
+            .filter(({ c, signal }) => {
+              if (!realCtx) return true;
+              if (signal.action === "COMPRAR") return freeOf(quote) >= realAmount;
+              return freeOf(c.symbol) > 0;
+            });
+
+          if (realBlock || !candidates.length) {
             await supabaseAdmin
               .from("bot_settings")
               .update({ last_tick_at: nowIso })
               .eq("user_id", s.user_id);
+            // Em modo real explicamos periodicamente porque a IA está em espera.
+            if (s.real_mode && new Date(nowIso).getUTCMinutes() % 10 === 0) {
+              await supabaseAdmin.from("ia_pareceres").insert({
+                user_id: s.user_id,
+                symbol: "REAL",
+                model: "modo-real",
+                verdict: "aguardar",
+                rationale:
+                  realBlock ??
+                  `Sem entradas reais executáveis: saldo livre de ${freeOf(quote).toFixed(2)} ${quote} para ordens de ${realAmount} e sem moedas em carteira para vender.`,
+              });
+            }
             continue;
           }
+
+          const picked = candidates[Math.floor(Math.random() * candidates.length)];
+          const coin = picked.c;
+          const signal = picked.signal;
+
 
           const symbol = coin.symbol.toUpperCase();
 
