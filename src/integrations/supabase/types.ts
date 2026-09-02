@@ -171,7 +171,10 @@ export type Database = {
           max_loss_trade: number
           max_trades_per_hour: number
           min_trade: number
+          real_max_loss_day: number
+          real_max_loss_trade: number
           real_mode: boolean
+          real_trade_amount: number
           run_until: string | null
           sandbox_mode: boolean
           selected_coins: string[]
@@ -195,7 +198,10 @@ export type Database = {
           max_loss_trade?: number
           max_trades_per_hour?: number
           min_trade?: number
+          real_max_loss_day?: number
+          real_max_loss_trade?: number
           real_mode?: boolean
+          real_trade_amount?: number
           run_until?: string | null
           sandbox_mode?: boolean
           selected_coins?: string[]
@@ -219,7 +225,10 @@ export type Database = {
           max_loss_trade?: number
           max_trades_per_hour?: number
           min_trade?: number
+          real_max_loss_day?: number
+          real_max_loss_trade?: number
           real_mode?: boolean
+          real_trade_amount?: number
           run_until?: string | null
           sandbox_mode?: boolean
           selected_coins?: string[]
