@@ -38,6 +38,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 const tabs = [
   { id: "mercado", label: "MERCADO" },
+  { id: "carteira", label: "CARTEIRAS" },
   { id: "mapa", label: "MAPA MENTAL" },
   { id: "automacao", label: "AUTOMAÇÃO" },
   { id: "cerebro", label: "CÉREBRO" },
