@@ -35,6 +35,17 @@ import {
   simulateProtectedTrade,
   type Protection,
 } from "@/lib/protection";
+import { cooldownMsFor } from "@/lib/aggression";
+import {
+  DEFAULT_DIVERSIFICATION_CAP,
+  detectShock,
+  diversificationRoom,
+  hourlyCapReached,
+  recentVolatility,
+  scaleProtection,
+} from "@/lib/risk";
+import { resolveStrategy, type StrategyName } from "@/lib/strategies";
+import { fetchSentiment, sentimentAdjust, type Sentiment } from "@/lib/sentiment";
 
 export type TradeLog = {
   id: string;
@@ -73,6 +84,13 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const [strategy, setStrategy] = useState<StrategyState>(defaultStrategy);
   const [symbolStats, setSymbolStats] = useState<SymbolStat[]>([]);
   const [plan, setPlan] = useState<PlanTier>("normal");
+  const [maxTradesPerHour, setMaxTradesPerHour] = useState(6);
+  const [diversificationCap, setDiversificationCap] = useState(DEFAULT_DIVERSIFICATION_CAP);
+  const [useSentiment, setUseSentiment] = useState(false);
+  const [sandbox, setSandbox] = useState(false);
+  const [strategyChoice, setStrategyChoice] = useState<StrategyName | "auto">("auto");
+  const [sentiment, setSentiment] = useState<Sentiment | null>(null);
+  const [shockNote, setShockNote] = useState<string>("");
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
@@ -85,11 +103,26 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const statsRef = useRef<Map<string, SymbolStat>>(new Map());
   const pnlHistoryRef = useRef<number[]>([]);
   const planRef = useRef<PlanTier>("normal");
+  const freqRef = useRef(6);
+  const capRef = useRef(DEFAULT_DIVERSIFICATION_CAP);
+  const sentimentOnRef = useRef(false);
+  const sentimentRef = useRef<Sentiment | null>(null);
+  const strategyChoiceRef = useRef<StrategyName | "auto">("auto");
+  const cooldownRef = useRef<Map<string, number>>(new Map());
+  const tradeTimesRef = useRef<number[]>([]);
+  const exposureRef = useRef<Map<string, number>>(new Map());
+  const capitalRef = useRef(0);
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
   protectionRef.current = protection;
   aggressionRef.current = aggression;
+  freqRef.current = maxTradesPerHour;
+  capRef.current = diversificationCap;
+  sentimentOnRef.current = useSentiment;
+  sentimentRef.current = sentiment;
+  strategyChoiceRef.current = strategyChoice;
+  capitalRef.current = available + invested;
 
   useEffect(() => {
     let active = true;
@@ -122,6 +155,27 @@ export function useJarvis(userId: string, coins: Coin[]) {
       active = false;
     };
   }, [userId]);
+
+  // Sentimento de mercado (opcional, atualizado de 10 em 10 minutos)
+  useEffect(() => {
+    if (!useSentiment) {
+      setSentiment(null);
+      return;
+    }
+    let active = true;
+    const load = () =>
+      fetchSentiment()
+        .then((s) => {
+          if (active) setSentiment(s);
+        })
+        .catch(() => undefined);
+    load();
+    const timer = setInterval(load, 600_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [useSentiment]);
 
   // Carregar carteira, definições e histórico da Cloud
   useEffect(() => {
@@ -156,6 +210,13 @@ export function useJarvis(userId: string, coins: Coin[]) {
           maxLossPerDay: Number(settings.data.max_loss_day),
         });
         setAggression((settings.data.aggression as Aggression) ?? "moderado");
+        setMaxTradesPerHour(Number(settings.data.max_trades_per_hour ?? 6));
+        setDiversificationCap(
+          Number(settings.data.diversification_cap_pct ?? DEFAULT_DIVERSIFICATION_CAP),
+        );
+        setUseSentiment(Boolean(settings.data.use_sentiment));
+        setSandbox(Boolean(settings.data.sandbox_mode));
+        setStrategyChoice(((settings.data.strategy as StrategyName | "auto") ?? "auto"));
         setProtection({
           takeProfitPct: Number(settings.data.take_profit_pct ?? defaultProtection.takeProfitPct),
           stopLossPct: Number(settings.data.stop_loss_pct ?? defaultProtection.stopLossPct),
