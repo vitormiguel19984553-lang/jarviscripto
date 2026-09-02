@@ -184,24 +184,29 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           // Analisa todas as moedas vigiadas e escolhe entre as entradas
           // executáveis (antes só era testada uma moeda ao acaso por tick).
-          const candidates = pool
+          const actionable = pool
             .map((c) => ({ c, signal: analyse(c) }))
             .filter(
               ({ signal }) => signal.action !== "AGUARDAR" && passesAggression(signal, aggression),
-            )
-            .filter(({ c, signal }) => {
-              if (!realCtx) return true;
-              if (signal.action === "COMPRAR") return canBuyReal;
-              return freeOf(c.symbol) > 0;
-            });
+            );
+          const candidates = actionable.filter(({ c, signal }) => {
+            if (!realCtx) return true;
+            if (signal.action === "COMPRAR") return canBuyReal;
+            return freeOf(c.symbol) > 0;
+          });
 
           if (realBlock || !candidates.length) {
+            const onlySells =
+              actionable.length > 0 && actionable.every((a) => a.signal.action !== "COMPRAR");
             const waitReason = s.real_mode
               ? (realBlock ??
-                (canBuyReal
-                  ? "Nenhum sinal com confiança suficiente neste momento — a IA está a vigiar o mercado."
-                  : `Saldo real insuficiente: tens ${freeQuote.toFixed(2)} ${quote} livre e a Binance exige pelo menos 5 ${quote} por ordem.`))
+                (!canBuyReal
+                  ? `Saldo real insuficiente: tens ${freeQuote.toFixed(2)} ${quote} livre e a Binance exige pelo menos 5 ${quote} por ordem.`
+                  : onlySells
+                    ? "O mercado só dá sinais de venda e ainda não tens estas moedas compradas na tua Binance — a IA espera por um sinal de compra."
+                    : "Nenhum sinal com confiança suficiente neste momento — a IA está a vigiar o mercado."))
               : null;
+
             await supabaseAdmin
               .from("bot_settings")
               .update({
