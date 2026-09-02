@@ -681,7 +681,6 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             amount = s.real_mode
               ? Math.min(realOrderAmount, Math.max(5, effect.amount))
               : effect.amount;
-            confidence = Math.max(confidence, effect.requiredConfidence || confidence);
           }
 
           const decisionNote =
