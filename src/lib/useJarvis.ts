@@ -621,11 +621,29 @@ export function useJarvis(userId: string, coins: Coin[]) {
     }
   };
 
-  const deposit = (amount: number) => {
-    if (amount <= 0) return;
-    const a = available + amount;
+  /**
+   * Capital fictício máximo da simulação. Impede "criar" dinheiro sem limite
+   * na carteira virtual — o dinheiro real vive sempre na Binance do utilizador.
+   */
+  const deposit = (amount: number): { ok: boolean; reason?: string } => {
+    if (amount <= 0) return { ok: false, reason: "Indica um montante acima de zero." };
+    const total = available + invested;
+    if (total >= SIM_CAPITAL_CAP) {
+      return {
+        ok: false,
+        reason: `A carteira de simulação já atingiu o limite de ${SIM_CAPITAL_CAP.toLocaleString("pt-PT")} € de capital fictício.`,
+      };
+    }
+    const allowed = Math.min(amount, SIM_CAPITAL_CAP - total);
+    const a = available + allowed;
     setAvailable(a);
     void persistWallet(a, invested);
+    return allowed < amount
+      ? {
+          ok: true,
+          reason: `Só foram adicionados ${allowed.toLocaleString("pt-PT")} € (limite de capital fictício).`,
+        }
+      : { ok: true };
   };
 
   return {
