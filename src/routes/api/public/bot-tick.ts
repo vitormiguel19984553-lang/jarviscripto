@@ -174,7 +174,13 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           }
           const freeOf = (a: string) =>
             realCtx?.bal.assets.find((x) => x.asset === a.toUpperCase())?.free ?? 0;
-          const quote = realCtx && freeOf("USDT") >= realAmount ? "USDT" : "USDC";
+          // Escolhe a cotação com mais saldo livre (USDT ou USDC).
+          const quote = freeOf("USDC") > freeOf("USDT") ? "USDC" : "USDT";
+          const freeQuote = freeOf(quote);
+          // A Binance exige ~5 USDT por ordem: se o saldo livre for menor que o
+          // valor configurado, usa-se o saldo disponível em vez de não operar.
+          const realOrderAmount = Math.min(realAmount, Math.floor(freeQuote * 100) / 100);
+          const canBuyReal = realOrderAmount >= 5;
 
           // Analisa todas as moedas vigiadas e escolhe entre as entradas
           // executáveis (antes só era testada uma moeda ao acaso por tick).
@@ -185,14 +191,23 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             )
             .filter(({ c, signal }) => {
               if (!realCtx) return true;
-              if (signal.action === "COMPRAR") return freeOf(quote) >= realAmount;
+              if (signal.action === "COMPRAR") return canBuyReal;
               return freeOf(c.symbol) > 0;
             });
 
           if (realBlock || !candidates.length) {
+            const waitReason = s.real_mode
+              ? (realBlock ??
+                (canBuyReal
+                  ? "Nenhum sinal com confiança suficiente neste momento — a IA está a vigiar o mercado."
+                  : `Saldo real insuficiente: tens ${freeQuote.toFixed(2)} ${quote} livre e a Binance exige pelo menos 5 ${quote} por ordem.`))
+              : null;
             await supabaseAdmin
               .from("bot_settings")
-              .update({ last_tick_at: nowIso })
+              .update({
+                last_tick_at: nowIso,
+                ...(s.real_mode ? { real_wait_reason: waitReason, real_wait_at: nowIso } : {}),
+              })
               .eq("user_id", s.user_id);
             // Em modo real explicamos periodicamente porque a IA está em espera.
             if (s.real_mode && new Date(nowIso).getUTCMinutes() % 10 === 0) {
@@ -201,13 +216,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                 symbol: "REAL",
                 model: "modo-real",
                 verdict: "aguardar",
-                rationale:
-                  realBlock ??
-                  `Sem entradas reais executáveis: saldo livre de ${freeOf(quote).toFixed(2)} ${quote} para ordens de ${realAmount} e sem moedas em carteira para vender.`,
+                rationale: waitReason ?? "Sem entradas reais executáveis.",
               });
             }
             continue;
           }
+
 
           const picked = candidates[Math.floor(Math.random() * candidates.length)];
           const coin = picked.c;
