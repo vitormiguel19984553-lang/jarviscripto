@@ -1,4 +1,4 @@
-import { type Coin, rsi, volatility } from "@/lib/market";
+import { analyseSeries, type Coin } from "@/lib/market";
 
 export type BacktestTrade = {
   index: number;
@@ -20,11 +20,6 @@ export type BacktestResult = {
   buyHoldPct: number;
   equity: number[];
 };
-
-function sma(series: number[], period: number) {
-  const slice = series.slice(-period);
-  return slice.reduce((a, b) => a + b, 0) / slice.length;
-}
 
 export type BacktestConfig = {
   /** Confiança mínima para abrir posição (0-100). */
@@ -55,18 +50,13 @@ export function backtest(coin: Coin, cfg: BacktestConfig): BacktestResult {
   for (let i = 50; i < series.length; i++) {
     const window = series.slice(0, i + 1);
     const price = window[window.length - 1];
-    const r = rsi(window);
-    const v = volatility(window.slice(-72));
-    const fast = sma(window, 12);
-    const slow = sma(window, 48);
-    const trendUp = fast >= slow;
-
-    let score = 50;
-    score += trendUp ? 15 : -12;
-    if (r < 35) score += 18;
-    if (r > 70) score -= 20;
-    score -= Math.min(18, v * 4);
-    const confidence = Math.max(8, Math.min(92, Math.round(score)));
+    // Mesma fórmula de pontuação do motor ao vivo (`analyse`).
+    const signal = analyseSeries(window, {
+      total_volume: coin.total_volume,
+      market_cap: coin.market_cap,
+    });
+    const confidence = signal.confidence;
+    const trendUp = signal.trend === "alta";
 
     if (openAt === null) {
       if (confidence >= cfg.minConfidence && trendUp) {
@@ -76,7 +66,10 @@ export function backtest(coin: Coin, cfg: BacktestConfig): BacktestResult {
     } else {
       const change = (price / openAt - 1) * 100;
       const exitNow =
-        change >= cfg.takeProfit || change <= -cfg.stopLoss || r > 72 || i === series.length - 1;
+        change >= cfg.takeProfit ||
+        change <= -cfg.stopLoss ||
+        signal.action === "VENDER" ||
+        i === series.length - 1;
       if (exitNow) {
         trades.push({ index: openIdx, entry: openAt, exit: price, pnlPct: change });
         capital *= 1 + change / 100;

@@ -173,7 +173,20 @@ function readTimeframe(series: number[], label: string, hours: number): Timefram
  * ponderada, e a acção só sai se houver maioria clara de confirmações.
  */
 export function analyse(coin: Coin): Signal {
-  const series = coin.sparkline_in_7d?.price ?? [];
+  return analyseSeries(coin.sparkline_in_7d?.price ?? [], {
+    total_volume: coin.total_volume,
+    market_cap: coin.market_cap,
+  });
+}
+
+/**
+ * Núcleo de pontuação partilhado: usado pelo motor ao vivo (`analyse`) e pelo
+ * backtesting histórico, para que as duas nunca divirjam.
+ */
+export function analyseSeries(
+  series: number[],
+  meta: { total_volume?: number; market_cap?: number } = {},
+): Signal {
   if (series.length < 30) {
     return {
       action: "AGUARDAR",
@@ -203,7 +216,7 @@ export function analyse(coin: Coin): Signal {
   const ema9 = ema(series, 9);
   const ema21 = ema(series, 21);
   const momentum = series.length > 24 ? (last / series[series.length - 24] - 1) * 100 : 0;
-  const liquidity = coin.market_cap ? coin.total_volume / coin.market_cap : 0;
+  const liquidity = meta.market_cap ? (meta.total_volume ?? 0) / meta.market_cap : 0;
 
   const timeframes = [
     readTimeframe(series, "6H", 6),
