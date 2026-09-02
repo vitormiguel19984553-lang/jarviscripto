@@ -7,12 +7,14 @@ import { RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import { eur } from "@/lib/market";
 import { loadRealWallet, refreshRealBalance, type RealBalance } from "@/lib/wallet";
 import { setRealTrading } from "@/lib/exchange.functions";
+import { loadAccount } from "@/lib/account";
+import { SIM_CAPITAL_CAP } from "@/lib/useJarvis";
 
 type SimEngine = {
   available: number;
   invested: number;
   transfer: (amount: number, toInvest: boolean) => void;
-  deposit: (amount: number) => void;
+  deposit: (amount: number) => { ok: boolean; reason?: string };
 };
 
 const usdt = (v: number) =>
@@ -27,6 +29,12 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
   const [amount, setAmount] = useState(500);
   const [balance, setBalance] = useState<RealBalance | null>(null);
   const setReal = useServerFn(setRealTrading);
+
+  const account = useQuery({
+    queryKey: ["account-profile", userId],
+    queryFn: () => loadAccount(userId),
+    enabled: Boolean(userId),
+  });
 
   const real = useQuery({
     queryKey: ["real-wallet", userId],
@@ -59,6 +67,32 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
 
   const w = real.data;
   const realMode = Boolean(w?.realTradingEnabled);
+  const p = account.data;
+
+  const requirements = [
+    {
+      label: "Identidade verificada (KYC-lite)",
+      done: p?.kycStatus === "verificado",
+      to: "/conta" as const,
+    },
+    { label: "Telefone confirmado", done: Boolean(p?.phoneVerified), to: "/conta" as const },
+    { label: "Aviso de risco aceite", done: Boolean(p?.riskAcceptedAt), to: "/conta" as const },
+    { label: "Binance ligada", done: Boolean(w?.connected), to: "/binance" as const },
+    {
+      label: "Verificação só de leitura do saldo",
+      done: Boolean(w?.verifiedAt),
+      to: "/binance" as const,
+    },
+  ];
+  const missing = requirements.filter((r) => !r.done);
+  const canGoReal = missing.length === 0;
+
+  const handleDeposit = () => {
+    const res = engine.deposit(amount);
+    if (!res.ok) toast.error(res.reason ?? "Depósito virtual não permitido.");
+    else if (res.reason) toast.warning(res.reason);
+    else toast.success(`${amount.toLocaleString("pt-PT")} € virtuais adicionados.`);
+  };
 
   return (
     <div className="space-y-4">
@@ -88,7 +122,8 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
           {w?.connected ? (
             <button
               onClick={() => toggleMode.mutate(true)}
-              disabled={realMode || toggleMode.isPending}
+              disabled={realMode || toggleMode.isPending || !canGoReal}
+              title={canGoReal ? undefined : "Falta concluir os requisitos abaixo"}
               className={`hud-btn px-3 py-2 text-[11px] ${realMode ? "hud-btn-danger" : "hud-btn-ghost"}`}
             >
               DINHEIRO REAL
@@ -101,13 +136,41 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
         </div>
       </div>
 
+      {!realMode && (
+        <div className="hud-panel p-4">
+          <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
+            Requisitos para operar com dinheiro real
+          </p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {requirements.map((r) => (
+              <li key={r.label} className="flex items-center justify-between gap-2">
+                <span className={r.done ? "text-primary" : "text-muted-foreground"}>
+                  {r.done ? "✓" : "○"} {r.label}
+                </span>
+                {!r.done && (
+                  <Link to={r.to} className="text-[11px] underline text-accent">
+                    resolver
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+          {canGoReal && (
+            <p className="mt-2 text-xs text-primary">
+              Tudo pronto — podes ativar o modo dinheiro real acima.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <section className="hud-panel p-5">
           <h2 className="flex items-center gap-2 text-sm tracking-widest text-primary">
             <Wallet className="size-4" aria-hidden /> CARTEIRA DE SIMULAÇÃO
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Dinheiro virtual. Nada aqui sai ou entra na tua conta real.
+            Dinheiro virtual. Nada aqui sai ou entra na tua conta real. Limite de capital
+            fictício: {SIM_CAPITAL_CAP.toLocaleString("pt-PT")} €.
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
@@ -152,7 +215,7 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
               PARA DISPONÍVEL
             </button>
             <button
-              onClick={() => engine.deposit(amount)}
+              onClick={handleDeposit}
               className="hud-btn hud-btn-accent col-span-2 px-3 py-2 text-xs"
             >
               DEPOSITAR (VIRTUAL)
