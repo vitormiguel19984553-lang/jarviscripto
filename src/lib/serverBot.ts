@@ -5,16 +5,17 @@ export type ServerBotState = {
   auto_run: boolean;
   run_until: string | null;
   last_tick_at: string | null;
+  real_mode: boolean;
 };
 
 export async function loadServerBot(userId: string): Promise<ServerBotState> {
   const { data, error } = await supabase
     .from("bot_settings")
-    .select("auto_run,run_until,last_tick_at")
+    .select("auto_run,run_until,last_tick_at,real_mode")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  return data ?? { auto_run: false, run_until: null, last_tick_at: null };
+  return data ?? { auto_run: false, run_until: null, last_tick_at: null, real_mode: false };
 }
 
 export async function startServerBot(userId: string, hours: number) {

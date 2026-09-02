@@ -55,10 +55,12 @@ function CoinSkeleton() {
 function ProfileMenu({
   email,
   plan,
+  realMode,
   onSignOut,
 }: {
   email: string;
   plan: string;
+  realMode: boolean;
   onSignOut: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -75,7 +77,9 @@ function ProfileMenu({
       {open && (
         <div className="absolute right-0 z-50 mt-2 w-60 rounded-md border border-border bg-card p-3 shadow-lg">
           <p className="truncate text-xs text-foreground">{email}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">Plano {plan} · modo simulação</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Plano {plan} · {realMode ? "dinheiro real" : "simulação"}
+          </p>
           <button
             onClick={onSignOut}
             className="hud-btn hud-btn-ghost mt-3 w-full px-3 py-2 text-[11px]"
@@ -101,6 +105,11 @@ function Dashboard() {
   });
   const coins = market.data ?? [];
   const engine = useJarvis(user.id, coins);
+  const mode = useQuery({
+    queryKey: ["real-wallet", user.id],
+    queryFn: () => import("@/lib/wallet").then(({ loadRealWallet }) => loadRealWallet(user.id)),
+  });
+  const realMode = Boolean(mode.data?.realTradingEnabled);
 
   const signOut = async () => {
     await queryClient.cancelQueries();
@@ -122,7 +131,7 @@ function Dashboard() {
           <div>
             <h1 className="text-lg text-glow sm:text-2xl">CRIPTO JARVIS</h1>
             <p className="hidden text-xs text-muted-foreground sm:block">
-              {user.email} · plano {engine.limits.label} · modo simulação
+              {user.email} · plano {engine.limits.label} · {realMode ? "dinheiro real" : "simulação"}
             </p>
           </div>
         </div>
@@ -140,7 +149,12 @@ function Dashboard() {
             </span>
           </div>
           <div className="md:hidden">
-            <ProfileMenu email={user.email ?? ""} plan={engine.limits.label} onSignOut={signOut} />
+            <ProfileMenu
+              email={user.email ?? ""}
+              plan={engine.limits.label}
+              realMode={realMode}
+              onSignOut={signOut}
+            />
           </div>
           <button
             onClick={signOut}
@@ -247,8 +261,8 @@ function Dashboard() {
       )}
 
       <footer className="mt-8 text-center text-xs text-muted-foreground">
-        Simulação · cérebro da IA com memória de padrões, revisão cruzada entre modelos e limites
-        por plano.
+        {realMode ? "Dinheiro real · Binance não-custodial" : "Simulação"} · cérebro da IA com
+        memória de padrões, revisão cruzada entre modelos e limites por plano.
       </footer>
 
       <BottomNav />

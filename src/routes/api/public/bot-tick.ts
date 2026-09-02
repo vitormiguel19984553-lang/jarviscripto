@@ -331,6 +331,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           // de emergência, diversificação, agressividade, cadência) já foram
           // aplicados — em modo real usa-se exatamente a mesma lógica.
           let realNote = "";
+          let realOrderSucceeded = false;
           if (s.real_mode) {
             const { data: conn } = await supabaseAdmin
               .from("exchange_connections")
@@ -348,16 +349,19 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                   quoteOrderQty: amount,
                 });
                 realNote = ` · ordem real na tua Binance (#${order.orderId})`;
+                realOrderSucceeded = true;
               } catch (e) {
                 const msg = e instanceof Error ? e.message : "erro desconhecido";
                 await supabaseAdmin.from("alerts").insert({
                   user_id: s.user_id,
                   kind: "real_order_failed",
                   title: "Ordem real não executada",
-                  body: `${symbol}: ${msg}. A operação foi registada apenas em simulação.`,
+                  body: `${symbol}: ${msg}. Nenhuma operação foi registada nem debitada.`,
                 });
-                realNote = ` · ordem real falhou (${msg})`;
+                continue;
               }
+            } else {
+              continue;
             }
           }
 
@@ -429,7 +433,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             .select("available,invested")
             .eq("user_id", s.user_id)
             .maybeSingle();
-          if (wallet) {
+          if (wallet && !realOrderSucceeded) {
             await supabaseAdmin
               .from("wallets")
               .update({
@@ -501,7 +505,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               user_id: s.user_id,
               kind: "trade",
               title: `${action} ${symbol} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€ (servidor)`,
-              body: `Ordem simulada de ${amount}€ com confiança ${confidence}%. ${exitReason}`,
+              body: `${s.real_mode && realNote.includes("ordem real na tua Binance") ? "Ordem real" : "Ordem simulada"} de ${amount}€ com confiança ${confidence}%. ${exitReason}${realNote}`,
             });
           }
 

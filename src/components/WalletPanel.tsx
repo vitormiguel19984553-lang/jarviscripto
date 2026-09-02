@@ -9,6 +9,7 @@ import { loadRealWallet, refreshRealBalance, type RealBalance } from "@/lib/wall
 import { setRealTrading } from "@/lib/exchange.functions";
 import { loadAccount } from "@/lib/account";
 import { SIM_CAPITAL_CAP } from "@/lib/useJarvis";
+import { loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
 
 type SimEngine = {
   available: number;
@@ -42,6 +43,13 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
     enabled: Boolean(userId),
   });
 
+  const automation = useQuery({
+    queryKey: ["server-bot", userId],
+    queryFn: () => loadServerBot(userId),
+    enabled: Boolean(userId),
+    refetchInterval: 30_000,
+  });
+
   const refresh = useMutation({
     mutationFn: refreshRealBalance,
     onSuccess: (res) => {
@@ -65,8 +73,29 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const toggleRealAutomation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (enabled) await startServerBot(userId, 12);
+      else await stopServerBot(userId);
+      return enabled;
+    },
+    onSuccess: (enabled) => {
+      toast.success(
+        enabled
+          ? "Operações reais ligadas por 12 horas."
+          : "Automação real desligada.",
+      );
+      void qc.invalidateQueries({ queryKey: ["server-bot", userId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Não foi possível alterar a automação real."),
+  });
+
   const w = real.data;
   const realMode = Boolean(w?.realTradingEnabled);
+  const realAutomationActive =
+    Boolean(automation.data?.auto_run) &&
+    Boolean(automation.data?.run_until) &&
+    new Date(automation.data?.run_until ?? 0) > new Date();
   const p = account.data;
 
   const requirements = [
@@ -285,6 +314,53 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
                 <RefreshCw className={`size-3.5 ${refresh.isPending ? "animate-spin" : ""}`} />
                 {refresh.isPending ? "A LER SALDO…" : "ATUALIZAR SALDO REAL"}
               </button>
+
+              {realMode && (
+                <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-display text-xs tracking-widest text-foreground">
+                        OPERAÇÕES REAIS 24/7
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {realAutomationActive
+                          ? `Ativas até ${new Date(automation.data?.run_until ?? 0).toLocaleString("pt-PT")}`
+                          : "Modo real autorizado, mas a automação está parada."}
+                      </p>
+                    </div>
+                    <span
+                      className={`size-2 shrink-0 rounded-full ${realAutomationActive ? "bg-success" : "bg-muted-foreground"}`}
+                      aria-hidden
+                    />
+                  </div>
+                  {(balance?.canTrade === false || (w.lastBalance ?? 0) < 5) && (
+                    <p className="mt-2 text-[11px] text-destructive">
+                      {balance?.canTrade === false
+                        ? "A chave Binance não tem permissão Spot & Margin Trading."
+                        : "O saldo disponível é inferior ao mínimo habitual de ordem Spot (5 USDT). Adiciona saldo na tua Binance antes de operar."}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => toggleRealAutomation.mutate(!realAutomationActive)}
+                    disabled={
+                      toggleRealAutomation.isPending ||
+                      (!realAutomationActive &&
+                        (balance?.canTrade === false || (w.lastBalance ?? 0) < 5))
+                    }
+                    className={
+                      realAutomationActive
+                        ? "hud-btn hud-btn-danger mt-3 w-full px-3 py-2 text-[11px]"
+                        : "hud-btn hud-btn-accent mt-3 w-full px-3 py-2 text-[11px]"
+                    }
+                  >
+                    {toggleRealAutomation.isPending
+                      ? "A PROCESSAR…"
+                      : realAutomationActive
+                        ? "PARAR OPERAÇÕES REAIS"
+                        : "INICIAR OPERAÇÕES REAIS · 12H"}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </section>

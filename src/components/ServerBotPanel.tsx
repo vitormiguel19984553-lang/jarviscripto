@@ -57,8 +57,8 @@ export function ServerBotPanel({
         </span>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        O Jarvis continua a analisar e a registar operações simuladas mesmo com o browser fechado,
-        usando as tuas moedas e limites de risco.
+        O Jarvis continua a analisar e a operar mesmo com o browser fechado, usando as tuas moedas
+        e limites de risco. Modo atual: {s?.real_mode ? "DINHEIRO REAL · BINANCE" : "SIMULAÇÃO"}.
         {planLabel ? ` Duração máxima do plano ${planLabel}: ${hours[hours.length - 1]}h.` : ""}
       </p>
 
