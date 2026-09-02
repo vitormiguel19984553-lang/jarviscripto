@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.has_min_staff_level(uuid, text) TO authenticated;
