@@ -9,7 +9,6 @@ import {
   disconnectExchange,
   saveExchangeKeys,
   setRealTrading,
-  verifyExchangeConnection,
 } from "@/lib/exchange.functions";
 import { JarvisNav } from "@/components/JarvisNav";
 import { BottomNav } from "@/components/BottomNav";
@@ -97,9 +96,24 @@ function BinancePage() {
     onError: (e: Error) => toast.error(e.message || "Não foi possível guardar as chaves"),
   });
 
-  const verify = useServerFn(verifyExchangeConnection);
   const check = useMutation({
-    mutationFn: () => verify({ data: undefined }),
+    mutationFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Sessão expirada. Entra novamente na conta.");
+
+      const response = await fetch("/api/public/binance/verify", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("O servidor devolveu uma resposta inválida. Atualiza a página e tenta novamente.");
+      }
+      return (await response.json()) as
+        | { ok: true; balance: Balance }
+        | { ok: false; error: string };
+    },
     onSuccess: (res) => {
       if (!res.ok) {
         setBalance(null);

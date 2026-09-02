@@ -27,6 +27,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat/index'
 import { Route as ApiPublicBotTickRouteImport } from './routes/api/public/bot-tick'
 import { Route as AuthenticatedChatThreadIdRouteImport } from './routes/_authenticated/chat/$threadId'
+import { Route as ApiPublicBinanceVerifyRouteImport } from './routes/api/public/binance/verify'
 
 const PlanosRoute = PlanosRouteImport.update({
   id: '/planos',
@@ -118,6 +119,11 @@ const AuthenticatedChatThreadIdRoute =
     path: '/chat/$threadId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicBinanceVerifyRoute = ApiPublicBinanceVerifyRouteImport.update({
+  id: '/api/public/binance/verify',
+  path: '/api/public/binance/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -137,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/chat/': typeof AuthenticatedChatIndexRoute
+  '/api/public/binance/verify': typeof ApiPublicBinanceVerifyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/chat': typeof AuthenticatedChatIndexRoute
+  '/api/public/binance/verify': typeof ApiPublicBinanceVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
+  '/api/public/binance/verify': typeof ApiPublicBinanceVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/chat/$threadId'
     | '/api/public/bot-tick'
     | '/chat/'
+    | '/api/public/binance/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/chat/$threadId'
     | '/api/public/bot-tick'
     | '/chat'
+    | '/api/public/binance/verify'
   id:
     | '__root__'
     | '/'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat/$threadId'
     | '/api/public/bot-tick'
     | '/_authenticated/chat/'
+    | '/api/public/binance/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -248,6 +260,7 @@ export interface RootRouteChildren {
   ApiMarketsRoute: typeof ApiMarketsRoute
   ApiSentimentRoute: typeof ApiSentimentRoute
   ApiPublicBotTickRoute: typeof ApiPublicBotTickRoute
+  ApiPublicBinanceVerifyRoute: typeof ApiPublicBinanceVerifyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatThreadIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/binance/verify': {
+      id: '/api/public/binance/verify'
+      path: '/api/public/binance/verify'
+      fullPath: '/api/public/binance/verify'
+      preLoaderRoute: typeof ApiPublicBinanceVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -419,6 +439,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketsRoute: ApiMarketsRoute,
   ApiSentimentRoute: ApiSentimentRoute,
   ApiPublicBotTickRoute: ApiPublicBotTickRoute,
+  ApiPublicBinanceVerifyRoute: ApiPublicBinanceVerifyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
