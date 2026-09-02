@@ -341,11 +341,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
           const baseAmount = s.real_mode
-            ? realBudget.tradeAmount
+            ? realOrderAmount
             : Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
           let amount = s.real_mode
-            ? realBudget.tradeAmount
+            ? realOrderAmount
             : amountWithAggression(sizeForWeight(baseAmount, sym.weight), aggression);
+
 
           // ── Segunda opinião entre IAs (planos Pro Max e Enterprise) ───────
           let opinion: Opinion = {
