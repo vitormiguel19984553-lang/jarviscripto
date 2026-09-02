@@ -197,8 +197,27 @@ export function useJarvis(userId: string, coins: Coin[]) {
       if (!active) return;
 
       if (wallet.data) {
-        setAvailable(Number(wallet.data.available));
-        setInvested(Number(wallet.data.invested));
+        const storedAvailable = Number(wallet.data.available);
+        const storedInvested = Number(wallet.data.invested);
+        const cappedInvested = Math.min(Math.max(0, storedInvested), SIM_CAPITAL_CAP);
+        const cappedAvailable = Math.min(
+          Math.max(0, storedAvailable),
+          Math.max(0, SIM_CAPITAL_CAP - cappedInvested),
+        );
+        setAvailable(cappedAvailable);
+        setInvested(cappedInvested);
+        if (cappedAvailable !== storedAvailable || cappedInvested !== storedInvested) {
+          const { error } = await supabase
+            .from("wallets")
+            .update({
+              available: cappedAvailable,
+              invested: cappedInvested,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", userId);
+          if (error) toast.error("Não foi possível corrigir o capital virtual acima do limite.");
+          else toast.info("A carteira de simulação foi ajustada ao limite de 100.000 €.");
+        }
       } else {
         await supabase.from("wallets").insert({ user_id: userId });
         setAvailable(10000);
