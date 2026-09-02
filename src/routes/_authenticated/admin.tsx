@@ -92,6 +92,7 @@ function AdminPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
     void queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+    void queryClient.invalidateQueries({ queryKey: ["cron-health"] });
   };
 
   const limits = useMutation({
