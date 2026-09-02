@@ -13,6 +13,7 @@ import { Route as PlanosRouteImport } from './routes/planos'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSentimentRouteImport } from './routes/api/sentiment'
 import { Route as ApiMarketsRouteImport } from './routes/api/markets'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
@@ -42,6 +43,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSentimentRoute = ApiSentimentRouteImport.update({
+  id: '/api/sentiment',
+  path: '/api/sentiment',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMarketsRoute = ApiMarketsRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/api/chat': typeof ApiChatRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/sentiment': typeof ApiSentimentRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/chat/': typeof AuthenticatedChatIndexRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/watchlist': typeof AuthenticatedWatchlistRoute
   '/api/chat': typeof ApiChatRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/sentiment': typeof ApiSentimentRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/chat': typeof AuthenticatedChatIndexRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
   '/api/chat': typeof ApiChatRoute
   '/api/markets': typeof ApiMarketsRoute
+  '/api/sentiment': typeof ApiSentimentRoute
   '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/api/public/bot-tick': typeof ApiPublicBotTickRoute
   '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/api/chat'
     | '/api/markets'
+    | '/api/sentiment'
     | '/chat/$threadId'
     | '/api/public/bot-tick'
     | '/chat/'
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/watchlist'
     | '/api/chat'
     | '/api/markets'
+    | '/api/sentiment'
     | '/chat/$threadId'
     | '/api/public/bot-tick'
     | '/chat'
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/_authenticated/watchlist'
     | '/api/chat'
     | '/api/markets'
+    | '/api/sentiment'
     | '/_authenticated/chat/$threadId'
     | '/api/public/bot-tick'
     | '/_authenticated/chat/'
@@ -210,6 +222,7 @@ export interface RootRouteChildren {
   PlanosRoute: typeof PlanosRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiMarketsRoute: typeof ApiMarketsRoute
+  ApiSentimentRoute: typeof ApiSentimentRoute
   ApiPublicBotTickRoute: typeof ApiPublicBotTickRoute
 }
 
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sentiment': {
+      id: '/api/sentiment'
+      path: '/api/sentiment'
+      fullPath: '/api/sentiment'
+      preLoaderRoute: typeof ApiSentimentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/markets': {
@@ -355,6 +375,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlanosRoute: PlanosRoute,
   ApiChatRoute: ApiChatRoute,
   ApiMarketsRoute: ApiMarketsRoute,
+  ApiSentimentRoute: ApiSentimentRoute,
   ApiPublicBotTickRoute: ApiPublicBotTickRoute,
 }
 export const routeTree = rootRouteImport
