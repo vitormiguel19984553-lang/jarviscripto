@@ -87,9 +87,23 @@ export function ControlPanel({
     refetchInterval: 30_000,
   });
   const realMode = Boolean(bot.data?.real_mode);
-  const realActive =
-    Boolean(bot.data?.auto_run) &&
-    Boolean(bot.data?.run_until && new Date(bot.data.run_until).getTime() > Date.now());
+  const runUntil = bot.data?.run_until ? new Date(bot.data.run_until).getTime() : 0;
+
+  // Relógio local de 1s para o contador do modo real (o run_until vive no servidor).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const realRemaining = Math.max(0, Math.floor((runUntil - now) / 1000));
+  const realActive = Boolean(bot.data?.auto_run) && realRemaining > 0;
+
+  const budget = useQuery({
+    queryKey: ["real-budget", userId],
+    queryFn: () => loadRealBudget(userId),
+    enabled: Boolean(userId) && realMode,
+  });
 
   const realRun = useMutation({
     mutationFn: async (start: boolean) =>
@@ -100,6 +114,8 @@ export function ControlPanel({
     },
     onError: (e: Error) => toast.error(e.message || "Não foi possível mudar a automação real."),
   });
+
+
 
 
   return (
