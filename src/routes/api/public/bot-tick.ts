@@ -326,6 +326,41 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           const action = signal.action === "COMPRAR" ? "COMPRA" : "VENDA";
 
+          // ── Modo real (não-custodial) ─────────────────────────────────────
+          // Todos os limites acima (perda diária, perda por operação, paragem
+          // de emergência, diversificação, agressividade, cadência) já foram
+          // aplicados — em modo real usa-se exatamente a mesma lógica.
+          let realNote = "";
+          if (s.real_mode) {
+            const { data: conn } = await supabaseAdmin
+              .from("exchange_connections")
+              .select("real_trading_enabled")
+              .eq("user_id", s.user_id)
+              .maybeSingle();
+            if (conn?.real_trading_enabled) {
+              try {
+                const { loadCredentials, placeMarketOrder } = await import("@/lib/exchange.server");
+                const creds = await loadCredentials(s.user_id);
+                if (!creds) throw new Error("sem chaves API");
+                const order = await placeMarketOrder(creds, {
+                  symbol: `${symbol}USDT`,
+                  side: action === "COMPRA" ? "BUY" : "SELL",
+                  quoteOrderQty: amount,
+                });
+                realNote = ` · ordem real na tua Binance (#${order.orderId})`;
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : "erro desconhecido";
+                await supabaseAdmin.from("alerts").insert({
+                  user_id: s.user_id,
+                  kind: "real_order_failed",
+                  title: "Ordem real não executada",
+                  body: `${symbol}: ${msg}. A operação foi registada apenas em simulação.`,
+                });
+                realNote = ` · ordem real falhou (${msg})`;
+              }
+            }
+          }
+
           const { data: tradeRow } = await supabaseAdmin
             .from("trades")
             .insert({
@@ -335,7 +370,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               amount,
               pnl,
               confidence,
-              reason: exitReason,
+              reason: exitReason + realNote,
             })
             .select("id")
             .maybeSingle();

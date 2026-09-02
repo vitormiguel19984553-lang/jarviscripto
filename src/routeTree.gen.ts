@@ -19,6 +19,8 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedWatchlistRouteImport } from './routes/_authenticated/watchlist'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
+import { Route as AuthenticatedBinanceRouteImport } from './routes/_authenticated/binance'
 import { Route as AuthenticatedBacktestRouteImport } from './routes/_authenticated/backtest'
 import { Route as AuthenticatedAlertasRouteImport } from './routes/_authenticated/alertas'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -75,6 +77,16 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedContaRoute = AuthenticatedContaRouteImport.update({
+  id: '/conta',
+  path: '/conta',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBinanceRoute = AuthenticatedBinanceRouteImport.update({
+  id: '/binance',
+  path: '/binance',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedBacktestRoute = AuthenticatedBacktestRouteImport.update({
   id: '/backtest',
   path: '/backtest',
@@ -114,6 +126,8 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRoute
   '/alertas': typeof AuthenticatedAlertasRoute
   '/backtest': typeof AuthenticatedBacktestRoute
+  '/binance': typeof AuthenticatedBinanceRoute
+  '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
@@ -131,6 +145,8 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRoute
   '/alertas': typeof AuthenticatedAlertasRoute
   '/backtest': typeof AuthenticatedBacktestRoute
+  '/binance': typeof AuthenticatedBinanceRoute
+  '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/watchlist': typeof AuthenticatedWatchlistRoute
@@ -150,6 +166,8 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/alertas': typeof AuthenticatedAlertasRoute
   '/_authenticated/backtest': typeof AuthenticatedBacktestRoute
+  '/_authenticated/binance': typeof AuthenticatedBinanceRoute
+  '/_authenticated/conta': typeof AuthenticatedContaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/watchlist': typeof AuthenticatedWatchlistRoute
@@ -169,6 +187,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/alertas'
     | '/backtest'
+    | '/binance'
+    | '/conta'
     | '/dashboard'
     | '/relatorios'
     | '/watchlist'
@@ -186,6 +206,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/alertas'
     | '/backtest'
+    | '/binance'
+    | '/conta'
     | '/dashboard'
     | '/relatorios'
     | '/watchlist'
@@ -204,6 +226,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/alertas'
     | '/_authenticated/backtest'
+    | '/_authenticated/binance'
+    | '/_authenticated/conta'
     | '/_authenticated/dashboard'
     | '/_authenticated/relatorios'
     | '/_authenticated/watchlist'
@@ -298,6 +322,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/conta': {
+      id: '/_authenticated/conta'
+      path: '/conta'
+      fullPath: '/conta'
+      preLoaderRoute: typeof AuthenticatedContaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/binance': {
+      id: '/_authenticated/binance'
+      path: '/binance'
+      fullPath: '/binance'
+      preLoaderRoute: typeof AuthenticatedBinanceRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/backtest': {
       id: '/_authenticated/backtest'
       path: '/backtest'
@@ -347,6 +385,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAlertasRoute: typeof AuthenticatedAlertasRoute
   AuthenticatedBacktestRoute: typeof AuthenticatedBacktestRoute
+  AuthenticatedBinanceRoute: typeof AuthenticatedBinanceRoute
+  AuthenticatedContaRoute: typeof AuthenticatedContaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedWatchlistRoute: typeof AuthenticatedWatchlistRoute
@@ -358,6 +398,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAlertasRoute: AuthenticatedAlertasRoute,
   AuthenticatedBacktestRoute: AuthenticatedBacktestRoute,
+  AuthenticatedBinanceRoute: AuthenticatedBinanceRoute,
+  AuthenticatedContaRoute: AuthenticatedContaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedWatchlistRoute: AuthenticatedWatchlistRoute,
