@@ -3,9 +3,11 @@ import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
 import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
 import { loadFeedback, pulseFeedback, saveFeedback } from "@/lib/feedback";
-import { useQuery } from "@tanstack/react-query";
-import { loadServerBot } from "@/lib/serverBot";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
 import { MoneyModeCard } from "@/components/MoneyModeCard";
+
 
 type Engine = ReturnType<typeof useJarvis>;
 
