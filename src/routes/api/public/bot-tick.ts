@@ -369,9 +369,13 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                     "a chave API não tem permissão de Spot Trading — cria uma chave com trading ativo",
                   );
                 }
-                if (action === "COMPRA" && bal.totalUsdt < amount) {
+                // A moeda de cotação segue o saldo real disponível (USDT ou USDC).
+                const freeOf = (a: string) =>
+                  bal.assets.find((x) => x.asset === a)?.free ?? 0;
+                const quote = freeOf("USDT") >= amount ? "USDT" : "USDC";
+                if (action === "COMPRA" && freeOf(quote) < amount) {
                   throw new Error(
-                    `saldo real insuficiente (${bal.totalUsdt} USDT) para uma ordem de ${amount} USDT`,
+                    `saldo real insuficiente (${bal.totalUsdt} USDT/USDC) para uma ordem de ${amount}`,
                   );
                 }
                 if (action === "VENDA") {
@@ -380,10 +384,11 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                   if (!held || held.free <= 0) continue;
                 }
                 const order = await placeMarketOrder(creds, {
-                  symbol: `${symbol}USDT`,
+                  symbol: `${symbol}${quote}`,
                   side: action === "COMPRA" ? "BUY" : "SELL",
                   quoteOrderQty: amount,
                 });
+
                 realNote = ` · ordem real na tua Binance (#${order.orderId})`;
                 realOrderSucceeded = true;
               } catch (e) {
