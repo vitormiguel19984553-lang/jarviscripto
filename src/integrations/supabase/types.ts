@@ -128,6 +128,36 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_cron_log: {
+        Row: {
+          endpoint: string
+          error_text: string | null
+          id: string
+          request_id: number | null
+          resolved_at: string | null
+          status_code: number | null
+          triggered_at: string
+        }
+        Insert: {
+          endpoint: string
+          error_text?: string | null
+          id?: string
+          request_id?: number | null
+          resolved_at?: string | null
+          status_code?: number | null
+          triggered_at?: string
+        }
+        Update: {
+          endpoint?: string
+          error_text?: string | null
+          id?: string
+          request_id?: number | null
+          resolved_at?: string | null
+          status_code?: number | null
+          triggered_at?: string
+        }
+        Relationships: []
+      }
       bot_settings: {
         Row: {
           aggression: string
