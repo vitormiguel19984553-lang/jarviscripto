@@ -76,6 +76,50 @@ export async function setEmergencyStop(enabled: boolean): Promise<void> {
   if (error) throw error;
 }
 
+export type CronHealth = {
+  endpoint: string | null;
+  lastRunAt: string | null;
+  lastOkAt: string | null;
+  lastStatus: number | null;
+  lastError: string | null;
+  stale: boolean;
+  recent: {
+    id: string;
+    triggeredAt: string;
+    statusCode: number | null;
+    errorText: string | null;
+  }[];
+};
+
+/** Estado das invocações do agendador (bot-tick) para diagnóstico no painel admin. */
+export async function loadCronHealth(): Promise<CronHealth> {
+  const [cfg, logs] = await Promise.all([
+    supabase.from("bot_cron_config").select("endpoint").maybeSingle(),
+    supabase
+      .from("bot_cron_log")
+      .select("id,triggered_at,status_code,error_text")
+      .order("triggered_at", { ascending: false })
+      .limit(30),
+  ]);
+  const rows = logs.data ?? [];
+  const ok = rows.find((r) => (r.status_code ?? 0) >= 200 && (r.status_code ?? 0) < 300);
+  const lastOkAt = ok?.triggered_at ?? null;
+  return {
+    endpoint: cfg.data?.endpoint ?? null,
+    lastRunAt: rows[0]?.triggered_at ?? null,
+    lastOkAt,
+    lastStatus: rows[0]?.status_code ?? null,
+    lastError: rows[0]?.error_text ?? null,
+    stale: !lastOkAt || Date.now() - new Date(lastOkAt).getTime() > 5 * 60_000,
+    recent: rows.slice(0, 10).map((r) => ({
+      id: r.id,
+      triggeredAt: r.triggered_at,
+      statusCode: r.status_code,
+      errorText: r.error_text,
+    })),
+  };
+}
+
 export async function setUserPlan(userId: string, plan: PlanTier): Promise<void> {
   const { error } = await supabase.from("profiles").update({ plan }).eq("id", userId);
   if (error) throw error;
