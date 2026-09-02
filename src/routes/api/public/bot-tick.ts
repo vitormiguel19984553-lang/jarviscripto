@@ -237,13 +237,30 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             continue;
           }
 
-          const minTrade = Number(s.min_trade);
-          const maxLossTrade = Math.min(Number(s.max_loss_trade), globalMaxLossTrade);
-          const maxLossDay = Math.min(Number(s.max_loss_day), globalMaxLossDay);
+          // Em modo real vale o orçamento escolhido pelo utilizador para
+          // dinheiro real; em simulação valem os limites da carteira virtual.
+          const realBudget = {
+            tradeAmount: Number((s as { real_trade_amount?: number }).real_trade_amount ?? 10),
+            maxLossTrade: Number((s as { real_max_loss_trade?: number }).real_max_loss_trade ?? 5),
+            maxLossDay: Number((s as { real_max_loss_day?: number }).real_max_loss_day ?? 20),
+          };
+          const minTrade = s.real_mode ? realBudget.tradeAmount : Number(s.min_trade);
+          const maxLossTrade = Math.min(
+            s.real_mode ? realBudget.maxLossTrade : Number(s.max_loss_trade),
+            globalMaxLossTrade,
+          );
+          const maxLossDay = Math.min(
+            s.real_mode ? realBudget.maxLossDay : Number(s.max_loss_day),
+            globalMaxLossDay,
+          );
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
-          const baseAmount = Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
-          let amount = amountWithAggression(sizeForWeight(baseAmount, sym.weight), aggression);
+          const baseAmount = s.real_mode
+            ? realBudget.tradeAmount
+            : Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
+          let amount = s.real_mode
+            ? realBudget.tradeAmount
+            : amountWithAggression(sizeForWeight(baseAmount, sym.weight), aggression);
 
           // ── Segunda opinião entre IAs (planos Pro Max e Enterprise) ───────
           let opinion: Opinion = {
