@@ -554,7 +554,16 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               last_tick_at: nowIso,
               day_loss: pnl < 0 ? Number((dayLoss + Math.abs(pnl)).toFixed(2)) : dayLoss,
               day_loss_date: today,
+              ...(s.real_mode
+                ? {
+                    real_wait_reason: realOrderSucceeded
+                      ? null
+                      : "Ordem executada apenas em simulação neste ciclo.",
+                    real_wait_at: nowIso,
+                  }
+                : {}),
             })
+
             .eq("user_id", s.user_id);
 
           // Auto-aprendizagem: registar resultado e reajustar a estratégia
