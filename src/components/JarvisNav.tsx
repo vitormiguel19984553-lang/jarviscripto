@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { checkIsAdmin } from "@/lib/admin";
+import { loadMyStaffLevel } from "@/lib/staff";
 
 const items = [
   { to: "/dashboard", label: "PAINEL" },
@@ -11,6 +11,8 @@ const items = [
   { to: "/alertas", label: "ALERTAS" },
   { to: "/backtest", label: "BACKTEST" },
   { to: "/planos", label: "PLANOS" },
+  { to: "/conta", label: "CONTA" },
+  { to: "/binance", label: "BINANCE" },
 ] as const;
 
 const linkClass =
@@ -24,7 +26,7 @@ export function JarvisNav() {
     queryFn: async () => {
       const { data } = await supabase.auth.getUser();
       if (!data.user) return false;
-      return checkIsAdmin(data.user.id);
+      return (await loadMyStaffLevel(data.user.id)) !== "none";
     },
     staleTime: 5 * 60_000,
   });
