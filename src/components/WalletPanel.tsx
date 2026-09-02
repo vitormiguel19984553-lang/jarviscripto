@@ -9,7 +9,90 @@ import { loadRealWallet, refreshRealBalance, type RealBalance } from "@/lib/wall
 import { setRealTrading } from "@/lib/exchange.functions";
 import { loadAccount } from "@/lib/account";
 import { SIM_CAPITAL_CAP } from "@/lib/useJarvis";
-import { loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
+import {
+  loadRealBudget,
+  loadServerBot,
+  saveRealBudget,
+  startServerBot,
+  stopServerBot,
+  type RealBudget,
+} from "@/lib/serverBot";
+
+/**
+ * Orçamento do dinheiro real: quanto entra em cada ordem e quanto o
+ * utilizador aceita perder (por operação e por dia) na conta Binance.
+ */
+function RealBudgetCard({ userId, active }: { userId: string; active: boolean }) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<RealBudget | null>(null);
+
+  const budget = useQuery({
+    queryKey: ["real-budget", userId],
+    queryFn: () => loadRealBudget(userId),
+    enabled: Boolean(userId),
+  });
+
+  const save = useMutation({
+    mutationFn: (next: RealBudget) => saveRealBudget(userId, next),
+    onSuccess: (saved) => {
+      setDraft(saved);
+      toast.success("Limites do dinheiro real guardados.");
+      void qc.invalidateQueries({ queryKey: ["real-budget", userId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Não foi possível guardar os limites."),
+  });
+
+  const value = draft ?? budget.data ?? null;
+  const set = (patch: Partial<RealBudget>) => value && setDraft({ ...value, ...patch });
+
+  const fields: { key: keyof RealBudget; label: string; hint: string }[] = [
+    { key: "tradeAmount", label: "Valor por operação (USDT)", hint: "mínimo 5 · máximo 5000" },
+    { key: "maxLossTrade", label: "Perda máx. por operação (USDT)", hint: "nunca acima do valor por operação" },
+    { key: "maxLossDay", label: "Perda máx. por dia (USDT)", hint: "ao atingir, a automação real desliga-se" },
+  ];
+
+  return (
+    <section className={`hud-panel p-5 ${active ? "border-destructive/40" : ""}`}>
+      <h2 className="text-sm tracking-widest text-primary">QUANTO USAR DO DINHEIRO REAL</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Estes valores aplicam-se só ao dinheiro real da tua Binance. A carteira de simulação
+        continua com os seus próprios limites no separador AUTOMAÇÃO.
+      </p>
+
+      {!value ? (
+        <p className="mt-4 text-xs text-muted-foreground">A carregar limites…</p>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {fields.map((f) => (
+              <label key={f.key} className="block">
+                <span className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                  {f.label}
+                </span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  value={value[f.key]}
+                  onChange={(e) => set({ [f.key]: Number(e.target.value) } as Partial<RealBudget>)}
+                  className="mt-1 w-full rounded-md border border-border bg-secondary/60 px-3 py-2 font-display text-sm outline-none focus:ring-1 focus:ring-ring"
+                />
+                <span className="mt-1 block text-[10px] text-muted-foreground">{f.hint}</span>
+              </label>
+            ))}
+          </div>
+          <button
+            onClick={() => save.mutate(value)}
+            disabled={save.isPending}
+            className="hud-btn hud-btn-primary mt-4 w-full px-3 py-2 text-[11px]"
+          >
+            {save.isPending ? "A GUARDAR…" : "GUARDAR LIMITES REAIS"}
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
 
 type SimEngine = {
   available: number;
