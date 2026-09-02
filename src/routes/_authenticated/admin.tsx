@@ -195,6 +195,67 @@ function AdminPage() {
         </button>
       </section>
 
+      <section
+        className={`hud-panel mt-6 p-5 ${cron?.stale ? "border-destructive/60" : "border-success/40"}`}
+      >
+        <h2
+          className={`mb-3 font-display text-xs tracking-widest ${cron?.stale ? "text-destructive" : "text-success"}`}
+        >
+          AUTOMAÇÃO 24/7 · SAÚDE DO AGENDADOR
+        </h2>
+        {cron?.stale ? (
+          <p className="mb-3 text-xs text-destructive">
+            ⚠ O bot-tick não corre com sucesso há mais de 5 minutos. A automação em segundo plano
+            pode estar parada.
+          </p>
+        ) : (
+          <p className="mb-3 text-xs text-muted-foreground">
+            O agendador está a chamar o bot-tick com sucesso.
+          </p>
+        )}
+        <dl className="grid gap-2 text-xs sm:grid-cols-2">
+          <div>
+            <dt className="text-muted-foreground">Endpoint</dt>
+            <dd className="break-all font-mono text-[11px]">{cron?.endpoint ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Última chamada</dt>
+            <dd>
+              {cron?.lastRunAt ? new Date(cron.lastRunAt).toLocaleString("pt-PT") : "—"}
+              {cron?.lastStatus != null && ` · HTTP ${cron.lastStatus}`}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Último sucesso</dt>
+            <dd>{cron?.lastOkAt ? new Date(cron.lastOkAt).toLocaleString("pt-PT") : "nunca"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Último erro</dt>
+            <dd className="break-all">{cron?.lastError ?? "—"}</dd>
+          </div>
+        </dl>
+        <ul className="mt-3 space-y-1 text-[11px]">
+          {(cron?.recent ?? []).map((r) => (
+            <li key={r.id} className="flex justify-between border-b border-border/40 py-1">
+              <span className="text-muted-foreground">
+                {new Date(r.triggeredAt).toLocaleTimeString("pt-PT")}
+              </span>
+              <span
+                className={
+                  r.statusCode && r.statusCode >= 200 && r.statusCode < 300
+                    ? "text-success"
+                    : "text-destructive"
+                }
+              >
+                {r.statusCode != null ? `HTTP ${r.statusCode}` : (r.errorText ?? "pendente")}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+
+
       <section className="hud-panel mt-6 p-5">
         <h2 className="mb-3 font-display text-xs tracking-widest text-primary">
           LIMITES GLOBAIS DE RISCO
