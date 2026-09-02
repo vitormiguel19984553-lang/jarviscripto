@@ -77,12 +77,28 @@ export function ControlPanel({
   selectedCount: number;
   userId: string;
 }) {
+  const qc = useQueryClient();
   const bot = useQuery({
     queryKey: ["server-bot", userId],
     queryFn: () => loadServerBot(userId),
     enabled: Boolean(userId),
+    refetchInterval: 30_000,
   });
   const realMode = Boolean(bot.data?.real_mode);
+  const realActive =
+    Boolean(bot.data?.auto_run) &&
+    Boolean(bot.data?.run_until && new Date(bot.data.run_until).getTime() > Date.now());
+
+  const realRun = useMutation({
+    mutationFn: async (start: boolean) =>
+      start ? startServerBot(userId, engine.durationHours) : stopServerBot(userId),
+    onSuccess: (_d, start) => {
+      toast.success(start ? "Operações reais iniciadas." : "Operações reais paradas.");
+      void qc.invalidateQueries({ queryKey: ["server-bot", userId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Não foi possível mudar a automação real."),
+  });
+
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
