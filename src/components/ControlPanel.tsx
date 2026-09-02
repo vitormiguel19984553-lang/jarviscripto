@@ -147,18 +147,46 @@ export function ControlPanel({
           <p className="font-display text-2xl text-glow">{fmtTime(engine.remaining)}</p>
         </div>
 
+        {realMode && (
+          <p className="mt-3 text-[11px] leading-snug text-destructive">
+            Modo DINHEIRO REAL ativo: o botão abaixo liga/desliga as ordens reais na tua Binance
+            durante {engine.durationHours}H.
+          </p>
+        )}
+
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
-            onClick={() => (engine.running ? engine.setRunning(false) : engine.start())}
-            disabled={!selectedCount}
-            className="hud-btn hud-btn-primary px-3 py-2.5 text-xs"
+            onClick={() => {
+              if (realMode) {
+                realRun.mutate(!realActive);
+                return;
+              }
+              engine.running ? engine.setRunning(false) : engine.start();
+            }}
+            disabled={realMode ? realRun.isPending : !selectedCount}
+            className={`hud-btn px-3 py-2.5 text-xs ${
+              realMode && realActive ? "hud-btn-danger" : "hud-btn-primary"
+            }`}
           >
-            {engine.running ? "PAUSAR" : "ATIVAR IA (SIMULAÇÃO)"}
+            {realMode
+              ? realActive
+                ? "PARAR REAIS"
+                : `ATIVAR IA (REAL) · ${engine.durationHours}H`
+              : engine.running
+                ? "PAUSAR"
+                : "ATIVAR IA (SIMULAÇÃO)"}
           </button>
-          <button onClick={engine.stopAll} className="hud-btn hud-btn-danger px-3 py-2.5 text-xs">
+          <button
+            onClick={() => {
+              engine.stopAll();
+              if (realMode) realRun.mutate(false);
+            }}
+            className="hud-btn hud-btn-danger px-3 py-2.5 text-xs"
+          >
             PARAGEM DE EMERGÊNCIA
           </button>
         </div>
+
         {engine.halted && (
           <p className="mt-3 text-xs text-destructive">
             Automação desligada. Verifica os limites de risco antes de reativar.
