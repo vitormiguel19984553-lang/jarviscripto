@@ -203,6 +203,12 @@ function Dashboard() {
         </section>
       )}
 
+      {tab === "carteira" && (
+        <div key="carteira" className="anim-rise mt-5">
+          <WalletPanel userId={user.id} engine={engine} />
+        </div>
+      )}
+
       {tab === "mapa" && (
         <div key="mapa" className="anim-rise mt-5">
           <MindMap coins={coins} logs={engine.logs} running={engine.running} userId={user.id} />
