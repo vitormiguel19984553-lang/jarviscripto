@@ -101,12 +101,19 @@ function BinancePage() {
   const check = useMutation({
     mutationFn: () => verify({ data: undefined }),
     onSuccess: (res) => {
+      if (!res.ok) {
+        setBalance(null);
+        toast.error(res.error || "Falha na verificação");
+        refresh();
+        return;
+      }
       setBalance(res.balance as Balance);
       toast.success("Ligação verificada em modo leitura");
       refresh();
     },
     onError: (e: Error) => toast.error(e.message || "Falha na verificação"),
   });
+
 
   const real = useServerFn(setRealTrading);
   const toggleReal = useMutation({
