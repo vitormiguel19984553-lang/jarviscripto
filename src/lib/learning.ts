@@ -42,11 +42,24 @@ export function nextWeight(weight: number, pnl: number): number {
   return Number(clamp(weight + step, WEIGHT_FLOOR, WEIGHT_CEIL).toFixed(3));
 }
 
+export const USER_CONFIDENCE_MIN = 45;
+export const USER_CONFIDENCE_MAX = 90;
+
+/**
+ * Piso definido pelo utilizador: a IA continua a auto-ajustar a confiança
+ * mínima, mas nunca desce abaixo do valor escolhido por quem opera.
+ */
+export function withUserFloor(learned: number, userFloor: number): number {
+  const floor = clamp(Number(userFloor) || USER_CONFIDENCE_MIN, USER_CONFIDENCE_MIN, USER_CONFIDENCE_MAX);
+  return Number(Math.max(learned, floor).toFixed(2));
+}
+
 /** Limite de confiança efetivo para uma moeda, dado o peso aprendido. */
 export function thresholdForSymbol(minConfidence: number, weight: number): number {
   const adjusted = minConfidence + (1 - weight) * 12;
   return Number(clamp(adjusted, MIN_CONFIDENCE_FLOOR, 95).toFixed(2));
 }
+
 
 /** Tamanho da posição escalado pelo peso aprendido da moeda. */
 export function sizeForWeight(baseAmount: number, weight: number): number {
