@@ -3,9 +3,11 @@ import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
 import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
 import { loadFeedback, pulseFeedback, saveFeedback } from "@/lib/feedback";
-import { useQuery } from "@tanstack/react-query";
-import { loadServerBot } from "@/lib/serverBot";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
 import { MoneyModeCard } from "@/components/MoneyModeCard";
+
 
 type Engine = ReturnType<typeof useJarvis>;
 
@@ -77,12 +79,28 @@ export function ControlPanel({
   selectedCount: number;
   userId: string;
 }) {
+  const qc = useQueryClient();
   const bot = useQuery({
     queryKey: ["server-bot", userId],
     queryFn: () => loadServerBot(userId),
     enabled: Boolean(userId),
+    refetchInterval: 30_000,
   });
   const realMode = Boolean(bot.data?.real_mode);
+  const realActive =
+    Boolean(bot.data?.auto_run) &&
+    Boolean(bot.data?.run_until && new Date(bot.data.run_until).getTime() > Date.now());
+
+  const realRun = useMutation({
+    mutationFn: async (start: boolean) =>
+      start ? startServerBot(userId, engine.durationHours) : stopServerBot(userId),
+    onSuccess: (_d, start) => {
+      toast.success(start ? "Operações reais iniciadas." : "Operações reais paradas.");
+      void qc.invalidateQueries({ queryKey: ["server-bot", userId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Não foi possível mudar a automação real."),
+  });
+
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -147,18 +165,46 @@ export function ControlPanel({
           <p className="font-display text-2xl text-glow">{fmtTime(engine.remaining)}</p>
         </div>
 
+        {realMode && (
+          <p className="mt-3 text-[11px] leading-snug text-destructive">
+            Modo DINHEIRO REAL ativo: o botão abaixo liga/desliga as ordens reais na tua Binance
+            durante {engine.durationHours}H.
+          </p>
+        )}
+
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
-            onClick={() => (engine.running ? engine.setRunning(false) : engine.start())}
-            disabled={!selectedCount}
-            className="hud-btn hud-btn-primary px-3 py-2.5 text-xs"
+            onClick={() => {
+              if (realMode) {
+                realRun.mutate(!realActive);
+                return;
+              }
+              engine.running ? engine.setRunning(false) : engine.start();
+            }}
+            disabled={realMode ? realRun.isPending : !selectedCount}
+            className={`hud-btn px-3 py-2.5 text-xs ${
+              realMode && realActive ? "hud-btn-danger" : "hud-btn-primary"
+            }`}
           >
-            {engine.running ? "PAUSAR" : "ATIVAR IA (SIMULAÇÃO)"}
+            {realMode
+              ? realActive
+                ? "PARAR REAIS"
+                : `ATIVAR IA (REAL) · ${engine.durationHours}H`
+              : engine.running
+                ? "PAUSAR"
+                : "ATIVAR IA (SIMULAÇÃO)"}
           </button>
-          <button onClick={engine.stopAll} className="hud-btn hud-btn-danger px-3 py-2.5 text-xs">
+          <button
+            onClick={() => {
+              engine.stopAll();
+              if (realMode) realRun.mutate(false);
+            }}
+            className="hud-btn hud-btn-danger px-3 py-2.5 text-xs"
+          >
             PARAGEM DE EMERGÊNCIA
           </button>
         </div>
+
         {engine.halted && (
           <p className="mt-3 text-xs text-destructive">
             Automação desligada. Verifica os limites de risco antes de reativar.
