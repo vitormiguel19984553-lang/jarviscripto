@@ -16,6 +16,7 @@ import { MindMap } from "@/components/MindMap";
 import { CalibrationPanel } from "@/components/CalibrationPanel";
 import { SecondOpinionFeed } from "@/components/SecondOpinionFeed";
 import { CoinCompare } from "@/components/CoinCompare";
+import { WalletPanel } from "@/components/WalletPanel";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 
 const tabs = [
   { id: "mercado", label: "MERCADO" },
+  { id: "carteira", label: "CARTEIRAS" },
   { id: "mapa", label: "MAPA MENTAL" },
   { id: "automacao", label: "AUTOMAÇÃO" },
   { id: "cerebro", label: "CÉREBRO" },
@@ -200,6 +202,12 @@ function Dashboard() {
             <CoinCompare coins={coins} />
           </div>
         </section>
+      )}
+
+      {tab === "carteira" && (
+        <div key="carteira" className="anim-rise mt-5">
+          <WalletPanel userId={user.id} engine={engine} />
+        </div>
       )}
 
       {tab === "mapa" && (

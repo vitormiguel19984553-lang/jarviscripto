@@ -66,7 +66,6 @@ const fmtTime = (s: number) =>
   `${String(Math.floor(s / 3600)).padStart(2, "0")}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 export function ControlPanel({ engine, selectedCount }: { engine: Engine; selectedCount: number }) {
-  const [amount, setAmount] = useState(500);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -194,51 +193,24 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
       </section>
 
       <section className="hud-panel p-5">
-        <h2 className="text-sm tracking-widest text-primary">CARTEIRA (SIMULAÇÃO)</h2>
+        <h2 className="text-sm tracking-widest text-primary">CARTEIRAS</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          O dinheiro de simulação e o saldo real da tua Binance estão separados no separador
+          CARTEIRAS.
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-md border border-border bg-secondary/40 p-3">
             <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
-              Disponível
+              Simulação · disponível
             </p>
             <p className="font-display text-lg">{eur(engine.available)}</p>
           </div>
           <div className="rounded-md border border-border bg-secondary/40 p-3">
-            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Investido</p>
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">
+              Simulação · investido
+            </p>
             <p className="font-display text-lg text-glow">{eur(engine.invested)}</p>
           </div>
-        </div>
-
-        <div className="mt-4">
-          <Field label="Montante (€)" value={amount} onChange={setAmount} />
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => engine.transfer(amount, true)}
-            className="hud-btn hud-btn-ghost px-3 py-2 text-xs text-primary"
-          >
-            PARA INVESTIMENTO
-          </button>
-          <button
-            onClick={() => engine.transfer(amount, false)}
-            className="hud-btn hud-btn-ghost px-3 py-2 text-xs"
-          >
-            PARA DISPONÍVEL
-          </button>
-          <button
-            onClick={() => engine.deposit(amount)}
-            className="hud-btn hud-btn-accent px-3 py-2 text-xs"
-          >
-            DEPOSITAR
-          </button>
-          <button
-            disabled
-            aria-disabled="true"
-            className="hud-btn hud-btn-ghost px-3 py-2 text-xs text-muted-foreground"
-            title="Levantamentos em breve"
-          >
-            LEVANTAR · EM BREVE
-          </button>
         </div>
 
         <FeedbackToggles />
