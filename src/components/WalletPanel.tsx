@@ -192,6 +192,8 @@ export function WalletPanel({ userId, engine }: { userId: string; engine: SimEng
         </div>
       )}
 
+      {w?.connected && <RealBudgetCard userId={userId} active={realMode} />}
+
       <div className="grid gap-4 md:grid-cols-2">
         <section className="hud-panel p-5">
           <h2 className="flex items-center gap-2 text-sm tracking-widest text-primary">
