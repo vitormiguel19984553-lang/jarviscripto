@@ -501,7 +501,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               user_id: s.user_id,
               kind: "trade",
               title: `${action} ${symbol} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€ (servidor)`,
-              body: `Ordem simulada de ${amount}€ com confiança ${confidence}%. ${exitReason}`,
+              body: `${s.real_mode && realNote.includes("ordem real na tua Binance") ? "Ordem real" : "Ordem simulada"} de ${amount}€ com confiança ${confidence}%. ${exitReason}${realNote}`,
             });
           }
 
