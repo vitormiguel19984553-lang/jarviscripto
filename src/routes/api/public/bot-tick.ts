@@ -1,15 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { analyse, type Coin } from "@/lib/market";
 import { fetchMarketsFromSource } from "@/lib/market-source";
-import { applyOutcome, emptyRow, patternFor, reviseConfidence, type MemoryRow } from "@/lib/brain";
+import {
+  applyOutcome,
+  emptyRow,
+  patternFor,
+  reviseConfidence,
+  type MemoryRow,
+  type Pattern,
+} from "@/lib/brain";
 import { limitsFor } from "@/lib/plans";
-import { simulateProtectedTrade, exitLabels } from "@/lib/protection";
+import { exitLabels } from "@/lib/protection";
+import { afterBuy, closeResult, forcedExit, type SimPosition } from "@/lib/positions";
+import { recentVolatility, scaleProtection } from "@/lib/risk";
 import {
   nextMinConfidence,
   nextWeight,
   sharpeRatio,
   sizeForWeight,
   thresholdForSymbol,
+  withUserFloor,
 } from "@/lib/learning";
 import type { Opinion } from "@/lib/second-opinion.server";
 import {
@@ -18,6 +28,7 @@ import {
   passesAggression,
   thresholdWithAggression,
 } from "@/lib/aggression";
+
 
 /**
  * Executa um "tick" da automação no servidor para todos os utilizadores com o
