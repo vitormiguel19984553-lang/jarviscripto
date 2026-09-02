@@ -15,6 +15,13 @@ const labels: Record<string, string> = {
   sem_revisao: "SEM REVISÃO",
 };
 
+type ModelOpinionRow = {
+  model?: string;
+  label?: string;
+  verdict: string;
+  rationale?: string;
+};
+
 /** Revisão cruzada entre IAs, visível fora dos logs. */
 export function SecondOpinionFeed({
   userId,
@@ -30,7 +37,9 @@ export function SecondOpinionFeed({
     queryFn: async () => {
       const { data } = await supabase
         .from("ia_pareceres")
-        .select("id,symbol,model,verdict,rationale,confidence_before,confidence_after,created_at")
+        .select(
+          "id,symbol,model,verdict,rationale,opinions,confidence_before,confidence_after,created_at",
+        )
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(8);
@@ -63,7 +72,7 @@ export function SecondOpinionFeed({
 
       <p className="mt-1 text-xs text-muted-foreground">
         {available
-          ? "Antes de cada ordem da automação, um segundo modelo revê o raciocínio e pode reduzir o valor da ordem."
+          ? "Antes de cada ordem da automação, dois modelos independentes revêem o raciocínio em paralelo. Se divergirem, o veredicto é no mínimo cautela e a ordem é reduzida."
           : `A revisão cruzada está disponível nos planos Pro Max e Enterprise (tens o plano ${planLabel}).`}
       </p>
 
@@ -97,6 +106,30 @@ export function SecondOpinionFeed({
                 </span>
               </div>
               <p className="mt-1 leading-snug text-foreground/80">{o.rationale}</p>
+              {Array.isArray(o.opinions) && o.opinions.length > 0 && (
+                <ul className="mt-2 space-y-1.5">
+                  {(o.opinions as ModelOpinionRow[]).map((m, i) => (
+                    <li
+                      key={`${o.id}-${m.model ?? i}`}
+                      className="rounded border border-border/60 bg-background/40 p-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-display text-[10px] tracking-widest text-primary">
+                          {m.label ?? m.model}
+                        </span>
+                        <span
+                          className={`rounded-full border px-1.5 py-0.5 font-display text-[9px] tracking-widest ${
+                            tones[m.verdict] ?? tones.sem_revisao
+                          }`}
+                        >
+                          {labels[m.verdict] ?? String(m.verdict).toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="mt-1 leading-snug text-foreground/70">{m.rationale}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="mt-1 text-[10px] opacity-70">
                 {o.model} · {new Date(o.created_at).toLocaleString("pt-PT")}
               </p>
