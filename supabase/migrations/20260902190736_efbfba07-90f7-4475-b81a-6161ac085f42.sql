@@ -1,0 +1,1 @@
+ALTER TABLE public.bot_settings ADD COLUMN IF NOT EXISTS real_wait_reason text, ADD COLUMN IF NOT EXISTS real_wait_at timestamptz;

@@ -132,16 +132,106 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const pool = coins.filter((c) => selected.includes(c.id));
           if (!pool.length) continue;
 
-          const coin = pool[Math.floor(Math.random() * pool.length)];
-          const signal = analyse(coin);
           const aggression = (s as { aggression?: string }).aggression ?? "moderado";
-          if (signal.action === "AGUARDAR" || !passesAggression(signal, aggression)) {
+
+          // ── Modo real: saldo e credenciais lidos uma vez por tick ──────────
+          // Só assim sabemos que entradas são realmente executáveis (comprar
+          // exige saldo em USDT/USDC, vender exige ter a moeda em carteira).
+          type RealCtx = {
+            creds: Awaited<ReturnType<typeof import("@/lib/exchange.server").loadCredentials>>;
+            bal: Awaited<ReturnType<typeof import("@/lib/exchange.server").fetchBalance>>;
+          };
+          let realCtx: RealCtx | null = null;
+          let realBlock: string | null = null;
+          const realAmount = Math.max(
+            5,
+            Number((s as { real_trade_amount?: number }).real_trade_amount ?? 10),
+          );
+          if (s.real_mode) {
+            const { data: conn } = await supabaseAdmin
+              .from("exchange_connections")
+              .select("real_trading_enabled")
+              .eq("user_id", s.user_id)
+              .maybeSingle();
+            if (!conn?.real_trading_enabled) {
+              realBlock = "as operações reais não estão ativadas na página Binance";
+            } else {
+              try {
+                const { loadCredentials, fetchBalance } = await import("@/lib/exchange.server");
+                const creds = await loadCredentials(s.user_id);
+                if (!creds) throw new Error("sem chaves API guardadas");
+                const bal = await fetchBalance(creds);
+                if (!bal.canTrade) {
+                  throw new Error(
+                    "a chave API não tem permissão de Spot Trading — cria uma chave com trading ativo",
+                  );
+                }
+                realCtx = { creds, bal };
+              } catch (e) {
+                realBlock = e instanceof Error ? e.message : "erro ao ler a tua Binance";
+              }
+            }
+          }
+          const freeOf = (a: string) =>
+            realCtx?.bal.assets.find((x) => x.asset === a.toUpperCase())?.free ?? 0;
+          // Escolhe a cotação com mais saldo livre (USDT ou USDC).
+          const quote = freeOf("USDC") > freeOf("USDT") ? "USDC" : "USDT";
+          const freeQuote = freeOf(quote);
+          // A Binance exige ~5 USDT por ordem: se o saldo livre for menor que o
+          // valor configurado, usa-se o saldo disponível em vez de não operar.
+          const realOrderAmount = Math.min(realAmount, Math.floor(freeQuote * 100) / 100);
+          const canBuyReal = realOrderAmount >= 5;
+
+          // Analisa todas as moedas vigiadas e escolhe entre as entradas
+          // executáveis (antes só era testada uma moeda ao acaso por tick).
+          const actionable = pool
+            .map((c) => ({ c, signal: analyse(c) }))
+            .filter(
+              ({ signal }) => signal.action !== "AGUARDAR" && passesAggression(signal, aggression),
+            );
+          const candidates = actionable.filter(({ c, signal }) => {
+            if (!realCtx) return true;
+            if (signal.action === "COMPRAR") return canBuyReal;
+            return freeOf(c.symbol) > 0;
+          });
+
+          if (realBlock || !candidates.length) {
+            const onlySells =
+              actionable.length > 0 && actionable.every((a) => a.signal.action !== "COMPRAR");
+            const waitReason = s.real_mode
+              ? (realBlock ??
+                (!canBuyReal
+                  ? `Saldo real insuficiente: tens ${freeQuote.toFixed(2)} ${quote} livre e a Binance exige pelo menos 5 ${quote} por ordem.`
+                  : onlySells
+                    ? "O mercado só dá sinais de venda e ainda não tens estas moedas compradas na tua Binance — a IA espera por um sinal de compra."
+                    : "Nenhum sinal com confiança suficiente neste momento — a IA está a vigiar o mercado."))
+              : null;
+
             await supabaseAdmin
               .from("bot_settings")
-              .update({ last_tick_at: nowIso })
+              .update({
+                last_tick_at: nowIso,
+                ...(s.real_mode ? { real_wait_reason: waitReason, real_wait_at: nowIso } : {}),
+              })
               .eq("user_id", s.user_id);
+            // Em modo real explicamos periodicamente porque a IA está em espera.
+            if (s.real_mode && new Date(nowIso).getUTCMinutes() % 10 === 0) {
+              await supabaseAdmin.from("ia_pareceres").insert({
+                user_id: s.user_id,
+                symbol: "REAL",
+                model: "modo-real",
+                verdict: "aguardar",
+                rationale: waitReason ?? "Sem entradas reais executáveis.",
+              });
+            }
             continue;
           }
+
+
+          const picked = candidates[Math.floor(Math.random() * candidates.length)];
+          const coin = picked.c;
+          const signal = picked.signal;
+
 
           const symbol = coin.symbol.toUpperCase();
 
@@ -256,11 +346,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const dayLoss = s.day_loss_date === today ? Number(s.day_loss) : 0;
 
           const baseAmount = s.real_mode
-            ? realBudget.tradeAmount
+            ? realOrderAmount
             : Math.max(minTrade, Math.round(minTrade * (1 + Math.random() * 3)));
           let amount = s.real_mode
-            ? realBudget.tradeAmount
+            ? realOrderAmount
             : amountWithAggression(sizeForWeight(baseAmount, sym.weight), aggression);
+
 
           // ── Segunda opinião entre IAs (planos Pro Max e Enterprise) ───────
           let opinion: Opinion = {
@@ -298,7 +389,10 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               continue;
             }
             // Ordens Spot reais têm mínimo prático de ~5 USDT.
-            amount = s.real_mode ? Math.max(5, effect.amount) : effect.amount;
+            amount = s.real_mode
+              ? Math.min(realOrderAmount, Math.max(5, effect.amount))
+              : effect.amount;
+
           }
           const sim = simulateProtectedTrade(
             amount,
@@ -351,61 +445,35 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           let realNote = "";
           let realOrderSucceeded = false;
           if (s.real_mode) {
-            const { data: conn } = await supabaseAdmin
-              .from("exchange_connections")
-              .select("real_trading_enabled")
-              .eq("user_id", s.user_id)
-              .maybeSingle();
-            if (conn?.real_trading_enabled) {
-              try {
-                const { loadCredentials, placeMarketOrder, fetchBalance } = await import(
-                  "@/lib/exchange.server"
+            if (!realCtx?.creds) continue;
+            try {
+              const { placeMarketOrder } = await import("@/lib/exchange.server");
+              if (action === "COMPRA" && freeOf(quote) < amount) {
+                throw new Error(
+                  `saldo real insuficiente (${realCtx.bal.totalUsdt} USDT/USDC) para uma ordem de ${amount}`,
                 );
-                const creds = await loadCredentials(s.user_id);
-                if (!creds) throw new Error("sem chaves API guardadas");
-                const bal = await fetchBalance(creds);
-                if (!bal.canTrade) {
-                  throw new Error(
-                    "a chave API não tem permissão de Spot Trading — cria uma chave com trading ativo",
-                  );
-                }
-                // A moeda de cotação segue o saldo real disponível (USDT ou USDC).
-                const freeOf = (a: string) =>
-                  bal.assets.find((x) => x.asset === a)?.free ?? 0;
-                const quote = freeOf("USDT") >= amount ? "USDT" : "USDC";
-                if (action === "COMPRA" && freeOf(quote) < amount) {
-                  throw new Error(
-                    `saldo real insuficiente (${bal.totalUsdt} USDT/USDC) para uma ordem de ${amount}`,
-                  );
-                }
-                if (action === "VENDA") {
-                  const held = bal.assets.find((a) => a.asset === symbol.toUpperCase());
-                  // Sem a moeda em carteira não há nada para vender: ignora o sinal.
-                  if (!held || held.free <= 0) continue;
-                }
-                const order = await placeMarketOrder(creds, {
-                  symbol: `${symbol}${quote}`,
-                  side: action === "COMPRA" ? "BUY" : "SELL",
-                  quoteOrderQty: amount,
-                });
-
-                realNote = ` · ordem real na tua Binance (#${order.orderId})`;
-                realOrderSucceeded = true;
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : "erro desconhecido";
-                await supabaseAdmin.from("alerts").insert({
-                  user_id: s.user_id,
-                  kind: "real_order_failed",
-                  title: "Ordem real não executada",
-                  body: `${symbol}: ${msg}. Nenhuma operação foi registada nem debitada.`,
-                });
-                continue;
               }
-            } else {
+              if (action === "VENDA" && freeOf(symbol) <= 0) continue;
+              const order = await placeMarketOrder(realCtx.creds, {
+                symbol: `${symbol}${quote}`,
+                side: action === "COMPRA" ? "BUY" : "SELL",
+                quoteOrderQty: amount,
+              });
 
+              realNote = ` · ordem real na tua Binance (#${order.orderId})`;
+              realOrderSucceeded = true;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "erro desconhecido";
+              await supabaseAdmin.from("alerts").insert({
+                user_id: s.user_id,
+                kind: "real_order_failed",
+                title: "Ordem real não executada",
+                body: `${symbol}: ${msg}. Nenhuma operação foi registada nem debitada.`,
+              });
               continue;
             }
           }
+
 
           const { data: tradeRow } = await supabaseAdmin
             .from("trades")
@@ -491,7 +559,16 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               last_tick_at: nowIso,
               day_loss: pnl < 0 ? Number((dayLoss + Math.abs(pnl)).toFixed(2)) : dayLoss,
               day_loss_date: today,
+              ...(s.real_mode
+                ? {
+                    real_wait_reason: realOrderSucceeded
+                      ? null
+                      : "Ordem executada apenas em simulação neste ciclo.",
+                    real_wait_at: nowIso,
+                  }
+                : {}),
             })
+
             .eq("user_id", s.user_id);
 
           // Auto-aprendizagem: registar resultado e reajustar a estratégia

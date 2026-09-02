@@ -175,6 +175,8 @@ export type Database = {
           real_max_loss_trade: number
           real_mode: boolean
           real_trade_amount: number
+          real_wait_at: string | null
+          real_wait_reason: string | null
           run_until: string | null
           sandbox_mode: boolean
           selected_coins: string[]
@@ -202,6 +204,8 @@ export type Database = {
           real_max_loss_trade?: number
           real_mode?: boolean
           real_trade_amount?: number
+          real_wait_at?: string | null
+          real_wait_reason?: string | null
           run_until?: string | null
           sandbox_mode?: boolean
           selected_coins?: string[]
@@ -229,6 +233,8 @@ export type Database = {
           real_max_loss_trade?: number
           real_mode?: boolean
           real_trade_amount?: number
+          real_wait_at?: string | null
+          real_wait_reason?: string | null
           run_until?: string | null
           sandbox_mode?: boolean
           selected_coins?: string[]
