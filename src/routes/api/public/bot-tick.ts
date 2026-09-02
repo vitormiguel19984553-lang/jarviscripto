@@ -422,61 +422,35 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           let realNote = "";
           let realOrderSucceeded = false;
           if (s.real_mode) {
-            const { data: conn } = await supabaseAdmin
-              .from("exchange_connections")
-              .select("real_trading_enabled")
-              .eq("user_id", s.user_id)
-              .maybeSingle();
-            if (conn?.real_trading_enabled) {
-              try {
-                const { loadCredentials, placeMarketOrder, fetchBalance } = await import(
-                  "@/lib/exchange.server"
+            if (!realCtx?.creds) continue;
+            try {
+              const { placeMarketOrder } = await import("@/lib/exchange.server");
+              if (action === "COMPRA" && freeOf(quote) < amount) {
+                throw new Error(
+                  `saldo real insuficiente (${realCtx.bal.totalUsdt} USDT/USDC) para uma ordem de ${amount}`,
                 );
-                const creds = await loadCredentials(s.user_id);
-                if (!creds) throw new Error("sem chaves API guardadas");
-                const bal = await fetchBalance(creds);
-                if (!bal.canTrade) {
-                  throw new Error(
-                    "a chave API não tem permissão de Spot Trading — cria uma chave com trading ativo",
-                  );
-                }
-                // A moeda de cotação segue o saldo real disponível (USDT ou USDC).
-                const freeOf = (a: string) =>
-                  bal.assets.find((x) => x.asset === a)?.free ?? 0;
-                const quote = freeOf("USDT") >= amount ? "USDT" : "USDC";
-                if (action === "COMPRA" && freeOf(quote) < amount) {
-                  throw new Error(
-                    `saldo real insuficiente (${bal.totalUsdt} USDT/USDC) para uma ordem de ${amount}`,
-                  );
-                }
-                if (action === "VENDA") {
-                  const held = bal.assets.find((a) => a.asset === symbol.toUpperCase());
-                  // Sem a moeda em carteira não há nada para vender: ignora o sinal.
-                  if (!held || held.free <= 0) continue;
-                }
-                const order = await placeMarketOrder(creds, {
-                  symbol: `${symbol}${quote}`,
-                  side: action === "COMPRA" ? "BUY" : "SELL",
-                  quoteOrderQty: amount,
-                });
-
-                realNote = ` · ordem real na tua Binance (#${order.orderId})`;
-                realOrderSucceeded = true;
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : "erro desconhecido";
-                await supabaseAdmin.from("alerts").insert({
-                  user_id: s.user_id,
-                  kind: "real_order_failed",
-                  title: "Ordem real não executada",
-                  body: `${symbol}: ${msg}. Nenhuma operação foi registada nem debitada.`,
-                });
-                continue;
               }
-            } else {
+              if (action === "VENDA" && freeOf(symbol) <= 0) continue;
+              const order = await placeMarketOrder(realCtx.creds, {
+                symbol: `${symbol}${quote}`,
+                side: action === "COMPRA" ? "BUY" : "SELL",
+                quoteOrderQty: amount,
+              });
 
+              realNote = ` · ordem real na tua Binance (#${order.orderId})`;
+              realOrderSucceeded = true;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : "erro desconhecido";
+              await supabaseAdmin.from("alerts").insert({
+                user_id: s.user_id,
+                kind: "real_order_failed",
+                title: "Ordem real não executada",
+                body: `${symbol}: ${msg}. Nenhuma operação foi registada nem debitada.`,
+              });
               continue;
             }
           }
+
 
           const { data: tradeRow } = await supabaseAdmin
             .from("trades")
