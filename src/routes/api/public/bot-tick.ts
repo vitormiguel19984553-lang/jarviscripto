@@ -297,7 +297,8 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                 .eq("user_id", s.user_id);
               continue;
             }
-            amount = effect.amount;
+            // Ordens Spot reais têm mínimo prático de ~5 USDT.
+            amount = s.real_mode ? Math.max(5, effect.amount) : effect.amount;
           }
           const sim = simulateProtectedTrade(
             amount,
