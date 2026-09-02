@@ -5,7 +5,7 @@ import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
 import { loadFeedback, pulseFeedback, saveFeedback } from "@/lib/feedback";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
+import { loadRealBudget, loadServerBot, startServerBot, stopServerBot } from "@/lib/serverBot";
 import { MoneyModeCard } from "@/components/MoneyModeCard";
 
 
