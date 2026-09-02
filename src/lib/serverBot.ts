@@ -6,17 +6,29 @@ export type ServerBotState = {
   run_until: string | null;
   last_tick_at: string | null;
   real_mode: boolean;
+  real_wait_reason: string | null;
+  real_wait_at: string | null;
 };
 
 export async function loadServerBot(userId: string): Promise<ServerBotState> {
   const { data, error } = await supabase
     .from("bot_settings")
-    .select("auto_run,run_until,last_tick_at,real_mode")
+    .select("auto_run,run_until,last_tick_at,real_mode,real_wait_reason,real_wait_at")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  return data ?? { auto_run: false, run_until: null, last_tick_at: null, real_mode: false };
+  return (
+    data ?? {
+      auto_run: false,
+      run_until: null,
+      last_tick_at: null,
+      real_mode: false,
+      real_wait_reason: null,
+      real_wait_at: null,
+    }
+  );
 }
+
 
 /** Orçamento e limites aplicados apenas ao dinheiro real (em USDT). */
 export type RealBudget = {
