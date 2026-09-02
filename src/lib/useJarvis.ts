@@ -47,6 +47,9 @@ import {
 import { resolveStrategy, type StrategyName } from "@/lib/strategies";
 import { fetchSentiment, sentimentAdjust, type Sentiment } from "@/lib/sentiment";
 
+/** Limite de capital fictício na carteira de simulação (€). */
+export const SIM_CAPITAL_CAP = 100_000;
+
 export type TradeLog = {
   id: string;
   time: Date;
