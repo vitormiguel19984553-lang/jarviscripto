@@ -358,9 +358,27 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               .maybeSingle();
             if (conn?.real_trading_enabled) {
               try {
-                const { loadCredentials, placeMarketOrder } = await import("@/lib/exchange.server");
+                const { loadCredentials, placeMarketOrder, fetchBalance } = await import(
+                  "@/lib/exchange.server"
+                );
                 const creds = await loadCredentials(s.user_id);
-                if (!creds) throw new Error("sem chaves API");
+                if (!creds) throw new Error("sem chaves API guardadas");
+                const bal = await fetchBalance(creds);
+                if (!bal.canTrade) {
+                  throw new Error(
+                    "a chave API não tem permissão de Spot Trading — cria uma chave com trading ativo",
+                  );
+                }
+                if (action === "COMPRA" && bal.totalUsdt < amount) {
+                  throw new Error(
+                    `saldo real insuficiente (${bal.totalUsdt} USDT) para uma ordem de ${amount} USDT`,
+                  );
+                }
+                if (action === "VENDA") {
+                  const held = bal.assets.find((a) => a.asset === symbol.toUpperCase());
+                  // Sem a moeda em carteira não há nada para vender: ignora o sinal.
+                  if (!held || held.free <= 0) continue;
+                }
                 const order = await placeMarketOrder(creds, {
                   symbol: `${symbol}USDT`,
                   side: action === "COMPRA" ? "BUY" : "SELL",
@@ -379,6 +397,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                 continue;
               }
             } else {
+
               continue;
             }
           }
