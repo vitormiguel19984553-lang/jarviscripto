@@ -48,43 +48,57 @@ export const saveExchangeKeys = createServerFn({ method: "POST" })
     return { masked: maskKey(data.apiKey) };
   });
 
-/** Passo só de leitura: busca o saldo real para o utilizador o ver primeiro. */
+/**
+ * Passo só de leitura: busca o saldo real para o utilizador o ver primeiro.
+ * Nunca lança — devolve sempre JSON com o erro, para o frontend poder mostrar
+ * a mensagem real da Binance em vez de uma página de erro HTML.
+ */
 export const verifyExchangeConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { userId } = context;
-    const { fetchBalance, loadCredentials } = await import("@/lib/exchange.server");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const creds = await loadCredentials(userId);
-    if (!creds) throw new Error("Ainda não há chaves guardadas.");
+    const now = new Date().toISOString();
 
     try {
-      const balance = await fetchBalance(creds);
-      await supabaseAdmin
-        .from("exchange_connections")
-        .update({
-          verified_at: new Date().toISOString(),
-          last_balance: balance.totalUsdt,
-          last_verify_error: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-      return { ok: true as const, balance };
+      const { fetchBalance, loadCredentials } = await import("@/lib/exchange.server");
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      const creds = await loadCredentials(userId);
+      if (!creds) {
+        return { ok: false as const, error: "Ainda não há chaves guardadas." };
+      }
+
+      try {
+        const balance = await fetchBalance(creds);
+        await supabaseAdmin
+          .from("exchange_connections")
+          .update({
+            verified_at: now,
+            last_balance: balance.totalUsdt,
+            last_verify_error: null,
+            updated_at: now,
+          })
+          .eq("user_id", userId);
+        return { ok: true as const, balance };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Falha na verificação";
+        await supabaseAdmin
+          .from("exchange_connections")
+          .update({
+            verified_at: null,
+            last_verify_error: message.slice(0, 300),
+            real_trading_enabled: false,
+            updated_at: now,
+          })
+          .eq("user_id", userId);
+        return { ok: false as const, error: message };
+      }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Falha na verificação";
-      await supabaseAdmin
-        .from("exchange_connections")
-        .update({
-          verified_at: null,
-          last_verify_error: message.slice(0, 300),
-          real_trading_enabled: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-      throw new Error(message);
+      const message = e instanceof Error ? e.message : "Falha inesperada na verificação";
+      return { ok: false as const, error: message };
     }
   });
+
 
 /** Liga/desliga o modo real — só depois de KYC, aviso de risco e verificação. */
 export const setRealTrading = createServerFn({ method: "POST" })
