@@ -16,6 +16,7 @@ import { MindMap } from "@/components/MindMap";
 import { CalibrationPanel } from "@/components/CalibrationPanel";
 import { SecondOpinionFeed } from "@/components/SecondOpinionFeed";
 import { CoinCompare } from "@/components/CoinCompare";
+import { WalletPanel } from "@/components/WalletPanel";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
