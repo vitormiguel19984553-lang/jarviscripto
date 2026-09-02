@@ -61,7 +61,21 @@ async function sign(query: string, apiSecret: string): Promise<string> {
     .join("");
 }
 
-const BASE = "https://api.binance.com";
+/** Binance tem vários hosts equivalentes; alguns estão bloqueados por região. */
+const HOSTS = [
+  "https://api.binance.com",
+  "https://api1.binance.com",
+  "https://api2.binance.com",
+  "https://api-gcp.binance.com",
+];
+
+function describeNonJson(status: number, text: string): string {
+  const snippet = text.trim().slice(0, 120);
+  if (status === 451 || status === 403 || /restricted|unavailable|cloudfront|access denied/i.test(snippet)) {
+    return `A Binance recusou o pedido do nosso servidor (HTTP ${status} — restrição geográfica ou de IP). Se limitaste a chave por IP, remove essa restrição ou usa uma chave sem limite de IP.`;
+  }
+  return `A Binance devolveu uma resposta inesperada (HTTP ${status}). Tenta novamente dentro de alguns minutos.`;
+}
 
 async function signedRequest(
   path: string,
@@ -69,20 +83,45 @@ async function signedRequest(
   creds: { apiKey: string; apiSecret: string },
   method: "GET" | "POST" = "GET",
 ): Promise<unknown> {
-  const query = new URLSearchParams({
-    ...params,
-    timestamp: String(Date.now()),
-    recvWindow: "10000",
-  }).toString();
-  const signature = await sign(query, creds.apiSecret);
-  const url = `${BASE}${path}?${query}&signature=${signature}`;
-  const res = await fetch(url, { method, headers: { "X-MBX-APIKEY": creds.apiKey } });
-  const body = (await res.json()) as { msg?: string; code?: number };
-  if (!res.ok) {
-    throw new Error(body?.msg ? `Binance: ${body.msg}` : `Binance devolveu HTTP ${res.status}`);
+  let lastError: Error | null = null;
+
+  for (const host of HOSTS) {
+    const query = new URLSearchParams({
+      ...params,
+      timestamp: String(Date.now()),
+      recvWindow: "10000",
+    }).toString();
+    const signature = await sign(query, creds.apiSecret);
+    const url = `${host}${path}?${query}&signature=${signature}`;
+
+    let res: Response;
+    try {
+      res = await fetch(url, { method, headers: { "X-MBX-APIKEY": creds.apiKey } });
+    } catch {
+      lastError = new Error("Não foi possível contactar a Binance. Tenta novamente.");
+      continue;
+    }
+
+    const text = await res.text();
+    let body: { msg?: string; code?: number } | null = null;
+    try {
+      body = JSON.parse(text) as { msg?: string; code?: number };
+    } catch {
+      // Resposta HTML (bloqueio regional/WAF): não é um erro de chave.
+      lastError = new Error(describeNonJson(res.status, text));
+      continue;
+    }
+
+    if (!res.ok) {
+      // Erro legítimo da API (chave inválida, permissões, etc.): não vale tentar outro host.
+      throw new Error(body?.msg ? `Binance: ${body.msg}` : `Binance devolveu HTTP ${res.status}`);
+    }
+    return body;
   }
-  return body;
+
+  throw lastError ?? new Error("Falha na comunicação com a Binance.");
 }
+
 
 export type ExchangeBalance = {
   totalUsdt: number;
