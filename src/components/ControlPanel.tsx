@@ -3,6 +3,9 @@ import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
 import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
 import { loadFeedback, pulseFeedback, saveFeedback } from "@/lib/feedback";
+import { useQuery } from "@tanstack/react-query";
+import { loadServerBot } from "@/lib/serverBot";
+import { MoneyModeCard } from "@/components/MoneyModeCard";
 
 type Engine = ReturnType<typeof useJarvis>;
 
@@ -65,10 +68,26 @@ function Field({
 const fmtTime = (s: number) =>
   `${String(Math.floor(s / 3600)).padStart(2, "0")}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-export function ControlPanel({ engine, selectedCount }: { engine: Engine; selectedCount: number }) {
+export function ControlPanel({
+  engine,
+  selectedCount,
+  userId,
+}: {
+  engine: Engine;
+  selectedCount: number;
+  userId: string;
+}) {
+  const bot = useQuery({
+    queryKey: ["server-bot", userId],
+    queryFn: () => loadServerBot(userId),
+    enabled: Boolean(userId),
+  });
+  const realMode = Boolean(bot.data?.real_mode);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <MoneyModeCard userId={userId} hours={engine.durationHours} />
+
       <section className="hud-panel p-5">
         <h2 className="text-sm tracking-widest text-primary">AUTOMAÇÃO</h2>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -134,7 +153,7 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
             disabled={!selectedCount}
             className="hud-btn hud-btn-primary px-3 py-2.5 text-xs"
           >
-            {engine.running ? "PAUSAR" : "ATIVAR IA"}
+            {engine.running ? "PAUSAR" : "ATIVAR IA (SIMULAÇÃO)"}
           </button>
           <button onClick={engine.stopAll} className="hud-btn hud-btn-danger px-3 py-2.5 text-xs">
             PARAGEM DE EMERGÊNCIA
@@ -148,7 +167,12 @@ export function ControlPanel({ engine, selectedCount }: { engine: Engine; select
       </section>
 
       <section className="hud-panel p-5">
-        <h2 className="text-sm tracking-widest text-primary">GESTÃO DE RISCO</h2>
+        <h2 className="text-sm tracking-widest text-primary">GESTÃO DE RISCO · SIMULAÇÃO</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {realMode
+            ? "Estás em DINHEIRO REAL: as operações usam os limites em USDT do cartão MODO DO DINHEIRO."
+            : "Limites da carteira virtual, em euros de simulação."}
+        </p>
         <div className="mt-4 space-y-3">
           <Field
             label="Investimento mínimo (€)"
