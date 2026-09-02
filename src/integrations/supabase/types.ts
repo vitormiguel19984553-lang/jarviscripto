@@ -187,6 +187,7 @@ export type Database = {
           updated_at: string
           use_sentiment: boolean
           user_id: string
+          user_min_confidence: number
         }
         Insert: {
           aggression?: string
@@ -216,6 +217,7 @@ export type Database = {
           updated_at?: string
           use_sentiment?: boolean
           user_id: string
+          user_min_confidence?: number
         }
         Update: {
           aggression?: string
@@ -245,6 +247,7 @@ export type Database = {
           updated_at?: string
           use_sentiment?: boolean
           user_id?: string
+          user_min_confidence?: number
         }
         Relationships: []
       }
@@ -825,6 +828,54 @@ export type Database = {
           notes?: string
           total_pnl?: number
           trades?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sim_positions: {
+        Row: {
+          avg_entry_price: number
+          coin_id: string
+          entry_confidence: number
+          entry_pattern_desc: string | null
+          entry_pattern_key: string | null
+          id: string
+          invested: number
+          opened_at: string
+          peak_price: number
+          quantity: number
+          symbol: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avg_entry_price?: number
+          coin_id: string
+          entry_confidence?: number
+          entry_pattern_desc?: string | null
+          entry_pattern_key?: string | null
+          id?: string
+          invested?: number
+          opened_at?: string
+          peak_price?: number
+          quantity?: number
+          symbol: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avg_entry_price?: number
+          coin_id?: string
+          entry_confidence?: number
+          entry_pattern_desc?: string | null
+          entry_pattern_key?: string | null
+          id?: string
+          invested?: number
+          opened_at?: string
+          peak_price?: number
+          quantity?: number
+          symbol?: string
           updated_at?: string
           user_id?: string
         }

@@ -158,6 +158,29 @@ export function ControlPanel({
           </p>
         </div>
 
+        <div className="mt-4 rounded-md border border-border bg-secondary/30 p-3">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11px] uppercase tracking-widest text-muted-foreground">
+              Confiança mínima
+            </span>
+            <span className="font-display text-sm text-primary">{engine.minConfidence}%</span>
+          </div>
+          <input
+            type="range"
+            min={45}
+            max={90}
+            step={1}
+            value={engine.minConfidence}
+            onChange={(e) => engine.setMinConfidence(Number(e.target.value))}
+            aria-label="Confiança mínima para operar"
+            className="mt-2 w-full accent-[var(--primary)]"
+          />
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+            Piso definido por ti: a IA continua a aprender o seu próprio limite, mas nunca opera
+            abaixo destes {engine.minConfidence}% — em simulação e em dinheiro real.
+          </p>
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2">
           {engine.limits.clientHours.map((h) => (
             <button

@@ -17,8 +17,14 @@ import {
   type StrategyState,
   type SymbolStat,
 } from "@/lib/strategy";
-import { sizeForWeight, thresholdForSymbol } from "@/lib/learning";
-import { patternFor, reviseConfidence, type MemoryRow } from "@/lib/brain";
+import {
+  sizeForWeight,
+  thresholdForSymbol,
+  USER_CONFIDENCE_MAX,
+  USER_CONFIDENCE_MIN,
+  withUserFloor,
+} from "@/lib/learning";
+import { patternFor, reviseConfidence, type MemoryRow, type Pattern } from "@/lib/brain";
 import { loadPatternMemory, recordPattern } from "@/lib/brainStore";
 import { limitsFor, type PlanTier } from "@/lib/plans";
 import { loadPlan } from "@/lib/planStore";
@@ -29,12 +35,10 @@ import {
   thresholdWithAggression,
   type Aggression,
 } from "@/lib/aggression";
-import {
-  defaultProtection,
-  exitLabels,
-  simulateProtectedTrade,
-  type Protection,
-} from "@/lib/protection";
+import { defaultProtection, exitLabels, type Protection } from "@/lib/protection";
+import { afterBuy, closeResult, forcedExit, type SimPosition } from "@/lib/positions";
+import { closePosition, loadPositions, savePeak, savePosition } from "@/lib/positionsStore";
+
 import { cooldownMsFor } from "@/lib/aggression";
 import {
   DEFAULT_DIVERSIFICATION_CAP,
@@ -94,6 +98,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const [strategyChoice, setStrategyChoice] = useState<StrategyName | "auto">("auto");
   const [sentiment, setSentiment] = useState<Sentiment | null>(null);
   const [shockNote, setShockNote] = useState<string>("");
+  const [positions, setPositions] = useState<SimPosition[]>([]);
+  const [minConfidence, setMinConfidence] = useState(55);
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
@@ -115,6 +121,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const tradeTimesRef = useRef<number[]>([]);
   const exposureRef = useRef<Map<string, number>>(new Map());
   const capitalRef = useRef(0);
+  const positionsRef = useRef<SimPosition[]>([]);
+  const minConfRef = useRef(55);
+  const availRef = useRef(0);
+  const investRef = useRef(0);
   coinsRef.current = coins;
   selRef.current = selected;
   riskRef.current = risk;
@@ -126,6 +136,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
   sentimentRef.current = sentiment;
   strategyChoiceRef.current = strategyChoice;
   capitalRef.current = available + invested;
+  minConfRef.current = minConfidence;
+  availRef.current = available;
+  investRef.current = invested;
+
 
   useEffect(() => {
     let active = true;
@@ -239,6 +253,9 @@ export function useJarvis(userId: string, coins: Coin[]) {
         setUseSentiment(Boolean(settings.data.use_sentiment));
         setSandbox(Boolean(settings.data.sandbox_mode));
         setStrategyChoice(((settings.data.strategy as StrategyName | "auto") ?? "auto"));
+        setMinConfidence(
+          Number((settings.data as { user_min_confidence?: number }).user_min_confidence ?? 55),
+        );
         setProtection({
           takeProfitPct: Number(settings.data.take_profit_pct ?? defaultProtection.takeProfitPct),
           stopLossPct: Number(settings.data.stop_loss_pct ?? defaultProtection.stopLossPct),
@@ -249,6 +266,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
       } else {
         await supabase.from("bot_settings").insert({ user_id: userId });
       }
+
+      // Posições simuladas realmente detidas (persistidas na Cloud).
+      try {
+        const pos = await loadPositions(userId);
+        if (active) {
+          positionsRef.current = pos;
+          setPositions(pos);
+          const expo = new Map<string, number>();
+          for (const p of pos) expo.set(p.symbol, p.invested);
+          exposureRef.current = expo;
+        }
+      } catch {
+        /* posições ausentes não bloqueiam o motor */
+      }
+
 
       pnlHistoryRef.current = (trades.data ?? []).map((t) => Number(t.pnl));
 
@@ -367,6 +399,17 @@ export function useJarvis(userId: string, coins: Coin[]) {
     void persistSettings({ duration_hours: h });
   };
 
+  /** Piso de confiança escolhido pelo utilizador (45–90%), igual em real e simulação. */
+  const updateMinConfidence = (n: number) => {
+    const v = Math.max(
+      USER_CONFIDENCE_MIN,
+      Math.min(USER_CONFIDENCE_MAX, Math.round(Number(n) || USER_CONFIDENCE_MIN)),
+    );
+    setMinConfidence(v);
+    void persistSettings({ user_min_confidence: v });
+  };
+
+
   const stopAll = useCallback(() => {
     setRunning(false);
     setRemaining(0);
@@ -398,38 +441,235 @@ export function useJarvis(userId: string, coins: Coin[]) {
     const engine = setInterval(async () => {
       const pool = coinsRef.current.filter((c) => selRef.current.includes(c.id));
       if (!pool.length) return;
-      // Teto absoluto de operações por hora, definido pelo utilizador.
-      if (hourlyCapReached(tradeTimesRef.current, freqRef.current)) return;
-      const coin = pool[Math.floor(Math.random() * pool.length)];
-      const symbolKey = coin.symbol.toUpperCase();
-      // Espera mínima entre operações na mesma moeda (depende do modo).
-      const lastAt = cooldownRef.current.get(symbolKey) ?? 0;
-      if (Date.now() - lastAt < cooldownMsFor(aggressionRef.current)) return;
-      const signal = analyse(coin);
-      if (signal.action === "AGUARDAR") return;
-      // Detetor de choque: movimento anormal trava novas entradas.
-      const shock = detectShock(coin);
-      if (shock.detected) {
-        setShockNote(`${symbolKey}: ${shock.reason}`);
-        if (alertsRef.current.on_risk_halt) {
+      const r = riskRef.current;
+
+      const logLine = (line: Omit<TradeLog, "id" | "time"> & { id?: string; time?: Date }) =>
+        setLogs((l) =>
+          [
+            {
+              id: line.id ?? `x-${Date.now()}`,
+              time: line.time ?? new Date(),
+              symbol: line.symbol,
+              action: line.action,
+              amount: line.amount,
+              pnl: line.pnl,
+              confidence: line.confidence,
+              reason: line.reason,
+            },
+            ...l,
+          ].slice(0, 100),
+        );
+
+      /** Aprendizagem simétrica: compras e vendas alimentam o mesmo cérebro. */
+      const learnFrom = async (symbol: string, pnl: number, patterns: Pattern[]) => {
+        pnlHistoryRef.current = [pnl, ...pnlHistoryRef.current].slice(0, 200);
+        const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
+        try {
+          const res = await recordOutcome({
+            userId,
+            symbol,
+            pnl,
+            recentPnls: pnlHistoryRef.current,
+            state: strategyRef.current,
+            stat,
+          });
+          const extra = instantLearningPenalty(aggressionRef.current, pnl);
+          if (extra) {
+            res.state = {
+              ...res.state,
+              min_confidence: Math.min(90, res.state.min_confidence + extra),
+            };
+          }
+          strategyRef.current = res.state;
+          statsRef.current.set(symbol, res.stat);
+          setStrategy(res.state);
+          setSymbolStats([...statsRef.current.values()]);
+        } catch {
+          /* aprendizagem não bloqueia a operação */
+        }
+        for (const p of patterns) {
+          try {
+            const mem = await loadPatternMemory(userId, p);
+            await recordPattern(userId, p, mem.own, pnl);
+          } catch {
+            /* memória não bloqueia a operação */
+          }
+        }
+      };
+
+      /** Fecha a posição ao preço real de mercado e realiza o resultado. */
+      const closeAt = async (
+        pos: SimPosition,
+        coin: Coin,
+        note: string,
+        confidence: number,
+        sellPattern: Pattern | null,
+      ) => {
+        const price = coin.current_price;
+        const res = closeResult(pos, price);
+        const reason =
+          `Saída de ${pos.symbol} a ${price.toFixed(4)}€ (entrada média ${pos.avg_entry_price.toFixed(4)}€, ${res.movePct}%) · ${note}`.trim();
+
+        try {
+          await closePosition(userId, pos.symbol);
+        } catch {
+          return;
+        }
+        positionsRef.current = positionsRef.current.filter((p) => p.symbol !== pos.symbol);
+        setPositions([...positionsRef.current]);
+
+        const nextAvailable = Number((availRef.current + res.proceeds).toFixed(2));
+        const nextInvested = Number(Math.max(0, investRef.current - res.investedPart).toFixed(2));
+        availRef.current = nextAvailable;
+        investRef.current = nextInvested;
+        setAvailable(nextAvailable);
+        setInvested(nextInvested);
+        void persistWallet(nextAvailable, nextInvested);
+
+        exposureRef.current.set(
+          pos.symbol,
+          Math.max(0, (exposureRef.current.get(pos.symbol) ?? 0) - res.investedPart),
+        );
+        cooldownRef.current.set(pos.symbol, Date.now());
+        tradeTimesRef.current = [Date.now(), ...tradeTimesRef.current].slice(0, 60);
+
+        const { data } = await supabase
+          .from("trades")
+          .insert({
+            user_id: userId,
+            symbol: pos.symbol,
+            action: "VENDA",
+            amount: res.investedPart,
+            pnl: res.pnl,
+            confidence,
+            reason,
+          })
+          .select()
+          .single();
+
+        logLine({
+          id: data?.id,
+          time: data ? new Date(data.created_at) : new Date(),
+          symbol: pos.symbol,
+          action: "VENDA",
+          amount: res.investedPart,
+          pnl: res.pnl,
+          confidence,
+          reason,
+        });
+
+        if (alertsRef.current.on_trade && Math.abs(res.pnl) >= alertsRef.current.min_pnl) {
           void createAlert({
             userId,
-            kind: "shock",
-            title: `Choque de mercado em ${symbolKey}`,
-            body: shock.reason,
+            kind: "trade",
+            title: `VENDA ${pos.symbol} · ${res.pnl >= 0 ? "+" : ""}${res.pnl.toFixed(2)}€`,
+            body: `Posição simulada de ${res.investedPart}€ fechada com confiança ${confidence}%. ${reason}`,
           }).catch(() => undefined);
         }
+
+        const patterns: Pattern[] = [];
+        if (pos.entry_pattern_key) {
+          patterns.push({
+            key: pos.entry_pattern_key,
+            description: pos.entry_pattern_desc ?? pos.entry_pattern_key,
+          });
+        }
+        if (sellPattern) patterns.push(sellPattern);
+        await learnFrom(pos.symbol, res.pnl, patterns);
+
+        if (res.pnl < 0) {
+          dayLoss.current += Math.abs(res.pnl);
+          if (dayLoss.current > r.maxLossPerDay) {
+            setRunning(false);
+            setHalted(true);
+            if (alertsRef.current.on_risk_halt) {
+              void createAlert({
+                userId,
+                kind: "risk_halt",
+                title: "Automação parada — limite diário atingido",
+                body: `A perda acumulada atingiu o limite de ${r.maxLossPerDay}€ por dia. O Jarvis desligou a automação por segurança.`,
+              }).catch(() => undefined);
+            }
+          }
+        }
+      };
+
+      // ── 1. Rede de segurança das posições abertas ─────────────────────────
+      // Corre antes da IA: stop loss, take profit e trailing stop podem fechar
+      // uma posição mesmo contra a vontade da IA.
+      for (const pos of positionsRef.current) {
+        const coin = coinsRef.current.find((c) => c.id === pos.coin_id);
+        if (!coin) continue;
+        const dyn = scaleProtection(protectionRef.current, recentVolatility(coin));
+        const forced = forcedExit(pos, coin.current_price, dyn);
+        if (!forced.exit) {
+          if (coin.current_price > pos.peak_price) {
+            pos.peak_price = coin.current_price;
+            void savePeak(userId, pos.symbol, coin.current_price).catch(() => undefined);
+          }
+          continue;
+        }
+        await closeAt(
+          pos,
+          coin,
+          `rede de segurança acionada: ${exitLabels[forced.exit]} (SL ${dyn.stopLossPct}% / TP ${dyn.takeProfitPct}%)`,
+          pos.entry_confidence || 50,
+          null,
+        );
         return;
       }
-      // Modo de agressividade: filtra o sinal antes de qualquer decisão.
-      if (!passesAggression(signal, aggressionRef.current)) return;
 
+      // Teto absoluto de operações por hora, definido pelo utilizador.
+      if (hourlyCapReached(tradeTimesRef.current, freqRef.current)) return;
+
+      // ── 2. Candidatos: a IA analisa compras e vendas no mesmo pipeline ────
+      // Moedas detidas voltam a passar pelo analyse() para gerar uma decisão
+      // genuína de VENDER/AGUARDAR, tal como as compras.
+      const held = new Map(positionsRef.current.map((p) => [p.coin_id, p]));
+      const candidates = pool
+        .map((c) => ({ coin: c, signal: analyse(c), position: held.get(c.id) ?? null }))
+        .filter(({ signal, position }) =>
+          position ? signal.action === "VENDER" : signal.action === "COMPRAR",
+        )
+        .filter(({ signal }) => passesAggression(signal, aggressionRef.current));
+      if (!candidates.length) return;
+
+      const picked = candidates[Math.floor(Math.random() * candidates.length)];
+      const coin = picked.coin;
+      const signal = picked.signal;
+      const position = picked.position;
       const symbol = coin.symbol.toUpperCase();
-      const st = strategyRef.current;
+
+      // Espera mínima entre operações na mesma moeda (depende do modo).
+      const lastAt = cooldownRef.current.get(symbol) ?? 0;
+      if (Date.now() - lastAt < cooldownMsFor(aggressionRef.current)) return;
+
+      // Detetor de choque: movimento anormal trava novas entradas (as saídas
+      // continuam permitidas, para não ficar preso num choque).
+      if (!position) {
+        const shock = detectShock(coin);
+        if (shock.detected) {
+          setShockNote(`${symbol}: ${shock.reason}`);
+          if (alertsRef.current.on_risk_halt) {
+            void createAlert({
+              userId,
+              kind: "shock",
+              title: `Choque de mercado em ${symbol}`,
+              body: shock.reason,
+            }).catch(() => undefined);
+          }
+          return;
+        }
+      }
+
       const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
-      // A IA só executa se o sinal superar o limite aprendido para esta moeda.
+      // A IA só executa se o sinal superar o limite aprendido para esta moeda,
+      // nunca abaixo do piso definido pelo utilizador.
       const threshold = thresholdWithAggression(
-        thresholdForSymbol(st.min_confidence, stat.weight),
+        thresholdForSymbol(
+          withUserFloor(strategyRef.current.min_confidence, minConfRef.current),
+          stat.weight,
+        ),
         aggressionRef.current,
       );
       // Estratégia nomeada + regime de mercado desta moeda.
@@ -437,7 +677,11 @@ export function useJarvis(userId: string, coins: Coin[]) {
       let stratConfidence = strat.confidence;
       let sentimentNote = "";
       if (sentimentOnRef.current && sentimentRef.current) {
-        const adj = sentimentAdjust(sentimentRef.current, signal.action);
+        const adj = sentimentAdjust(
+          sentimentRef.current,
+          signal.action as "COMPRAR" | "VENDER",
+        );
+
         stratConfidence = Math.max(5, Math.min(95, Math.round(stratConfidence + adj.points)));
         sentimentNote = adj.note;
       }
@@ -457,28 +701,35 @@ export function useJarvis(userId: string, coins: Coin[]) {
       } catch {
         /* a memória nunca bloqueia a operação */
       }
+      void memory;
       if (confidence < threshold) {
         if (memoryNote) {
-          setLogs((l) =>
-            [
-              {
-                id: `mem-${Date.now()}`,
-                time: new Date(),
-                symbol,
-                action: "VENDA" as const,
-                amount: 0,
-                pnl: 0,
-                confidence,
-                reason: `Entrada evitada — ${memoryNote}.`,
-              },
-              ...l,
-            ].slice(0, 100),
-          );
+          logLine({
+            symbol,
+            action: position ? "VENDA" : "COMPRA",
+            amount: 0,
+            pnl: 0,
+            confidence,
+            reason: `${position ? "Saída" : "Entrada"} evitada — ${memoryNote}.`,
+          });
         }
         return;
       }
 
-      const r = riskRef.current;
+      const decisionNote =
+        `${signal.reason} · ${strat.note}` +
+        (sentimentNote ? ` · ${sentimentNote}` : "") +
+        (memoryNote ? ` · ${memoryNote}` : "");
+
+      // ── 3a. Decisão de VENDA da própria IA (caminho principal de saída) ───
+      if (position) {
+        await closeAt(position, coin, `decisão da IA: ${decisionNote}`, confidence, pattern);
+        setShockNote("");
+        return;
+      }
+
+      // ── 3b. Decisão de COMPRA: abre posição real no livro simulado ────────
+      if (dayLoss.current >= r.maxLossPerDay) return;
       const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
       let amount = amountWithAggression(sizeForWeight(base, stat.weight), aggressionRef.current);
       // Diversificação: nunca mais do que X% do capital numa só moeda.
@@ -488,143 +739,100 @@ export function useJarvis(userId: string, coins: Coin[]) {
         capPct: capRef.current,
       });
       if (room < r.minTrade) {
-        setLogs((l) =>
-          [
-            {
-              id: `cap-${Date.now()}`,
-              time: new Date(),
-              symbol,
-              action: "VENDA" as const,
-              amount: 0,
-              pnl: 0,
-              confidence,
-              reason: `Entrada evitada — limite de diversificação de ${capRef.current}% do capital atingido em ${symbol}.`,
-            },
-            ...l,
-          ].slice(0, 100),
-        );
+        logLine({
+          symbol,
+          action: "COMPRA",
+          amount: 0,
+          pnl: 0,
+          confidence,
+          reason: `Entrada evitada — limite de diversificação de ${capRef.current}% do capital atingido em ${symbol}.`,
+        });
         return;
       }
       amount = Math.max(1, Math.min(amount, Math.floor(room)));
-      // Proteções de ordem: a saída acontece no take profit, stop loss ou
-      // trailing stop, conforme o caminho simulado do preço.
-      // Proteções escaladas pela volatilidade recente desta moeda.
-      const coinVol = recentVolatility(coin);
-      const dynamicProtection = scaleProtection(protectionRef.current, coinVol);
-      const sim = simulateProtectedTrade(amount, confidence / 100, dynamicProtection, coinVol);
-      const pnl = Number(Math.max(-r.maxLossPerTrade, sim.pnl).toFixed(2));
-      const exitReason =
-        `${signal.reason} · ${strat.note} · SL ${dynamicProtection.stopLossPct}% / TP ${dynamicProtection.takeProfitPct}% (volatilidade ${coinVol.toFixed(2)}%) · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)` +
-        (sentimentNote ? ` · ${sentimentNote}` : "") +
-        (memoryNote ? ` · ${memoryNote}` : "");
-
-      if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
-        setRunning(false);
-        setHalted(true);
-        if (alertsRef.current.on_risk_halt) {
-          void createAlert({
-            userId,
-            kind: "risk_halt",
-            title: "Automação parada — limite diário atingido",
-            body: `A perda acumulada aproximou-se do limite de ${r.maxLossPerDay}€ por dia. O Jarvis desligou a automação por segurança.`,
-          }).catch(() => undefined);
-        }
+      if (amount > availRef.current) {
+        logLine({
+          symbol,
+          action: "COMPRA",
+          amount: 0,
+          pnl: 0,
+          confidence,
+          reason: `Entrada evitada — saldo de simulação disponível insuficiente (${availRef.current.toFixed(2)}€).`,
+        });
         return;
       }
-      if (pnl < 0) dayLoss.current += Math.abs(pnl);
 
-      const action = signal.action === "COMPRAR" ? ("COMPRA" as const) : ("VENDA" as const);
-      if (alertsRef.current.on_trade && Math.abs(pnl) >= alertsRef.current.min_pnl) {
-        void createAlert({
-          userId,
-          kind: "trade",
-          title: `${action} ${coin.symbol.toUpperCase()} · ${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}€`,
-          body: `Ordem simulada de ${amount}€ com confiança ${confidence}%. ${exitReason}`,
-        }).catch(() => undefined);
+      const nextPos = afterBuy(position, {
+        symbol,
+        coinId: coin.id,
+        price: coin.current_price,
+        amount,
+        pattern,
+        confidence,
+      });
+      let saved: SimPosition;
+      try {
+        saved = await savePosition(userId, nextPos);
+      } catch {
+        return;
       }
+      positionsRef.current = [
+        ...positionsRef.current.filter((p) => p.symbol !== symbol),
+        saved,
+      ];
+      setPositions([...positionsRef.current]);
 
-      tradeTimesRef.current = [Date.now(), ...tradeTimesRef.current].slice(0, 60);
-      cooldownRef.current.set(symbol, Date.now());
+      const nextAvailable = Number((availRef.current - amount).toFixed(2));
+      const nextInvested = Number((investRef.current + amount).toFixed(2));
+      availRef.current = nextAvailable;
+      investRef.current = nextInvested;
+      setAvailable(nextAvailable);
+      setInvested(nextInvested);
+      void persistWallet(nextAvailable, nextInvested);
+
       exposureRef.current.set(symbol, (exposureRef.current.get(symbol) ?? 0) + amount);
+      cooldownRef.current.set(symbol, Date.now());
+      tradeTimesRef.current = [Date.now(), ...tradeTimesRef.current].slice(0, 60);
       setShockNote("");
 
+      const buyReason = `Compra a ${coin.current_price.toFixed(4)}€ · ${decisionNote} (a posição fica aberta até a IA decidir vender ou a rede de segurança atuar)`;
       const { data } = await supabase
         .from("trades")
         .insert({
           user_id: userId,
-          symbol: coin.symbol.toUpperCase(),
-          action,
+          symbol,
+          action: "COMPRA",
           amount,
-          pnl,
+          pnl: 0,
           confidence,
-          reason: exitReason,
+          reason: buyReason,
         })
         .select()
         .single();
 
-      setInvested((v) => {
-        const next = Number((v + pnl).toFixed(2));
-        setAvailable((a) => {
-          void persistWallet(a, next);
-          return a;
-        });
-        return next;
+      logLine({
+        id: data?.id,
+        time: data ? new Date(data.created_at) : new Date(),
+        symbol,
+        action: "COMPRA",
+        amount,
+        pnl: 0,
+        confidence,
+        reason: buyReason,
       });
 
-      if (data) {
-        setLogs((l) =>
-          [
-            {
-              id: data.id,
-              time: new Date(data.created_at),
-              symbol: data.symbol,
-              action,
-              amount,
-              pnl,
-              confidence,
-              reason: exitReason,
-            },
-            ...l,
-          ].slice(0, 100),
-        );
-      }
-
-      // Auto-aprendizagem: registar resultado e reajustar a estratégia.
-      pnlHistoryRef.current = [pnl, ...pnlHistoryRef.current].slice(0, 200);
-      try {
-        const res = await recordOutcome({
+      if (alertsRef.current.on_trade) {
+        void createAlert({
           userId,
-          symbol,
-          pnl,
-          recentPnls: pnlHistoryRef.current,
-          state: strategyRef.current,
-          stat,
-        });
-        // Modo agressivo: aprendizagem imediata — cada perda sobe logo a fasquia.
-        const extra = instantLearningPenalty(aggressionRef.current, pnl);
-        if (extra) {
-          res.state = {
-            ...res.state,
-            min_confidence: Math.min(90, res.state.min_confidence + extra),
-          };
-        }
-        strategyRef.current = res.state;
-        statsRef.current.set(symbol, res.stat);
-        setStrategy(res.state);
-        setSymbolStats([...statsRef.current.values()]);
-      } catch {
-        /* aprendizagem não bloqueia a operação */
-      }
-
-      // Memória: guardar o resultado deste padrão para decisões futuras.
-      try {
-        await recordPattern(userId, pattern, memory, pnl);
-      } catch {
-        /* memória não bloqueia a operação */
+          kind: "trade",
+          title: `COMPRA ${symbol} · ${amount}€`,
+          body: `Posição simulada aberta com confiança ${confidence}%. ${buyReason}`,
+        }).catch(() => undefined);
       }
     }, 4000);
     return () => clearInterval(engine);
   }, [running, userId, persistWallet]);
+
 
   const transfer = (amount: number, toInvest: boolean) => {
     if (amount <= 0) return;
@@ -707,5 +915,9 @@ export function useJarvis(userId: string, coins: Coin[]) {
     setStrategyChoice: updateStrategyChoice,
     sentiment,
     shockNote,
+    positions,
+    minConfidence,
+    setMinConfidence: updateMinConfidence,
   };
+
 }
