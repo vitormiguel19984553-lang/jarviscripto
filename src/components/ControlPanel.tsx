@@ -232,13 +232,32 @@ export function ControlPanel({
       </section>
 
       <section className="hud-panel p-5">
-        <h2 className="text-sm tracking-widest text-primary">GESTÃO DE RISCO · SIMULAÇÃO</h2>
+        <h2 className="text-sm tracking-widest text-primary">
+          GESTÃO DE RISCO · {realMode ? "DINHEIRO REAL" : "SIMULAÇÃO"}
+        </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           {realMode
-            ? "Estás em DINHEIRO REAL: as operações usam os limites em USDT do cartão MODO DO DINHEIRO."
+            ? "Em DINHEIRO REAL valem os limites em USDT abaixo (edita-os no cartão MODO DO DINHEIRO). Os valores em euros só afetam a simulação."
             : "Limites da carteira virtual, em euros de simulação."}
         </p>
+        {realMode && (
+          <div className="mt-4 space-y-2 rounded-md border border-destructive/40 bg-secondary/40 p-3 text-xs">
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Valor por operação</span>
+              <span className="font-display">{budget.data?.tradeAmount ?? "—"} USDT</span>
+            </p>
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Perda máx. por operação</span>
+              <span className="font-display">{budget.data?.maxLossTrade ?? "—"} USDT</span>
+            </p>
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Perda máx. diária</span>
+              <span className="font-display">{budget.data?.maxLossDay ?? "—"} USDT</span>
+            </p>
+          </div>
+        )}
         <div className="mt-4 space-y-3">
+
           <Field
             label="Investimento mínimo (€)"
             value={engine.risk.minTrade}
