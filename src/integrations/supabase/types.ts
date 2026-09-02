@@ -556,6 +556,7 @@ export type Database = {
           created_at: string
           id: string
           model: string
+          opinions: Json
           rationale: string
           symbol: string
           trade_id: string | null
@@ -568,6 +569,7 @@ export type Database = {
           created_at?: string
           id?: string
           model: string
+          opinions?: Json
           rationale?: string
           symbol: string
           trade_id?: string | null
@@ -580,6 +582,7 @@ export type Database = {
           created_at?: string
           id?: string
           model?: string
+          opinions?: Json
           rationale?: string
           symbol?: string
           trade_id?: string | null

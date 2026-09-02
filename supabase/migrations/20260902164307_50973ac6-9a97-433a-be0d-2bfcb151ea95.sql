@@ -1,0 +1,1 @@
+ALTER TABLE public.ia_pareceres ADD COLUMN IF NOT EXISTS opinions jsonb NOT NULL DEFAULT '[]'::jsonb;
