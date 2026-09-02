@@ -101,3 +101,18 @@ export async function stopServerBot(userId: string) {
     .eq("user_id", userId);
   if (error) throw error;
 }
+
+/** O modo real só pode ser ligado depois da verificação só de leitura na Binance. */
+export async function loadRealReadiness(userId: string) {
+  const { data, error } = await supabase
+    .from("exchange_connections")
+    .select("real_trading_enabled,verified_at,last_balance")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    enabled: Boolean(data?.real_trading_enabled),
+    verified: Boolean(data?.verified_at),
+    balance: Number(data?.last_balance ?? 0),
+  };
+}

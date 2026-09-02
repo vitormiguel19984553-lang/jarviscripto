@@ -232,7 +232,7 @@ function Dashboard() {
 
       {tab === "automacao" && (
         <div key="automacao" className="anim-rise mt-5 space-y-6">
-          <ControlPanel engine={engine} selectedCount={engine.selected.length} />
+          <ControlPanel engine={engine} selectedCount={engine.selected.length} userId={user.id} />
           <ServerBotPanel
             userId={user.id}
             hours={[...engine.limits.serverHours]}
