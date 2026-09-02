@@ -270,6 +270,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
                 model: opinion.model,
                 verdict: opinion.verdict,
                 rationale: `${opinion.rationale} (entrada travada pela revisão cruzada)`,
+                opinions: opinion.opinions ?? [],
                 confidence_before: signal.confidence,
                 confidence_after: confidence,
               });
@@ -347,6 +348,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             model: opinion.model,
             verdict: opinion.verdict,
             rationale: opinion.rationale,
+            opinions: opinion.opinions ?? [],
             confidence_before: signal.confidence,
             confidence_after: confidence,
           });
