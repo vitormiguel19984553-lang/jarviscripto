@@ -73,6 +73,12 @@ function AdminPage() {
     queryKey: ["platform-settings"],
     queryFn: loadPlatformSettings,
   });
+  const { data: cron } = useQuery({
+    queryKey: ["cron-health"],
+    queryFn: loadCronHealth,
+    refetchInterval: 30_000,
+  });
+
 
   const [maxTrade, setMaxTrade] = useState("");
   const [maxDay, setMaxDay] = useState("");
