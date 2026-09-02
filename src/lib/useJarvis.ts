@@ -313,6 +313,33 @@ export function useJarvis(userId: string, coins: Coin[]) {
     void persistSettings({ aggression: next });
   };
 
+  const updateMaxTradesPerHour = (n: number) => {
+    const v = Math.max(1, Math.min(20, Math.round(n)));
+    setMaxTradesPerHour(v);
+    void persistSettings({ max_trades_per_hour: v });
+  };
+
+  const updateDiversificationCap = (n: number) => {
+    const v = Math.max(5, Math.min(100, Math.round(n)));
+    setDiversificationCap(v);
+    void persistSettings({ diversification_cap_pct: v });
+  };
+
+  const updateUseSentiment = (v: boolean) => {
+    setUseSentiment(v);
+    void persistSettings({ use_sentiment: v });
+  };
+
+  const updateSandbox = (v: boolean) => {
+    setSandbox(v);
+    void persistSettings({ sandbox_mode: v });
+  };
+
+  const updateStrategyChoice = (v: StrategyName | "auto") => {
+    setStrategyChoice(v);
+    void persistSettings({ strategy: v });
+  };
+
   const updateDuration = (h: number) => {
     setDurationHours(h);
     void persistSettings({ duration_hours: h });
@@ -349,9 +376,29 @@ export function useJarvis(userId: string, coins: Coin[]) {
     const engine = setInterval(async () => {
       const pool = coinsRef.current.filter((c) => selRef.current.includes(c.id));
       if (!pool.length) return;
+      // Teto absoluto de operações por hora, definido pelo utilizador.
+      if (hourlyCapReached(tradeTimesRef.current, freqRef.current)) return;
       const coin = pool[Math.floor(Math.random() * pool.length)];
+      const symbolKey = coin.symbol.toUpperCase();
+      // Espera mínima entre operações na mesma moeda (depende do modo).
+      const lastAt = cooldownRef.current.get(symbolKey) ?? 0;
+      if (Date.now() - lastAt < cooldownMsFor(aggressionRef.current)) return;
       const signal = analyse(coin);
       if (signal.action === "AGUARDAR") return;
+      // Detetor de choque: movimento anormal trava novas entradas.
+      const shock = detectShock(coin);
+      if (shock.detected) {
+        setShockNote(`${symbolKey}: ${shock.reason}`);
+        if (alertsRef.current.on_risk_halt) {
+          void createAlert({
+            userId,
+            kind: "shock",
+            title: `Choque de mercado em ${symbolKey}`,
+            body: shock.reason,
+          }).catch(() => undefined);
+        }
+        return;
+      }
       // Modo de agressividade: filtra o sinal antes de qualquer decisão.
       if (!passesAggression(signal, aggressionRef.current)) return;
 
@@ -363,17 +410,26 @@ export function useJarvis(userId: string, coins: Coin[]) {
         thresholdForSymbol(st.min_confidence, stat.weight),
         aggressionRef.current,
       );
-      if (signal.confidence < threshold) return;
+      // Estratégia nomeada + regime de mercado desta moeda.
+      const strat = resolveStrategy(strategyChoiceRef.current, signal, coin);
+      let stratConfidence = strat.confidence;
+      let sentimentNote = "";
+      if (sentimentOnRef.current && sentimentRef.current) {
+        const adj = sentimentAdjust(sentimentRef.current, signal.action);
+        stratConfidence = Math.max(5, Math.min(95, Math.round(stratConfidence + adj.points)));
+        sentimentNote = adj.note;
+      }
+      if (stratConfidence < threshold) return;
 
       // Cérebro da IA: consultar a memória de padrões antes de decidir.
       const pattern = patternFor(signal, coin);
       let memory: MemoryRow | null = null;
       let memoryNote = "";
-      let confidence = signal.confidence;
+      let confidence = stratConfidence;
       try {
         const mem = await loadPatternMemory(userId, pattern);
         memory = mem.own;
-        const revised = reviseConfidence(signal.confidence, mem.own, mem.global);
+        const revised = reviseConfidence(stratConfidence, mem.own, mem.global);
         confidence = revised.confidence;
         memoryNote = revised.note;
       } catch {
@@ -402,21 +458,42 @@ export function useJarvis(userId: string, coins: Coin[]) {
 
       const r = riskRef.current;
       const base = Math.max(r.minTrade, Math.round(r.minTrade * (1 + Math.random() * 3)));
-      const amount = amountWithAggression(
-        sizeForWeight(base, stat.weight),
-        aggressionRef.current,
-      );
+      let amount = amountWithAggression(sizeForWeight(base, stat.weight), aggressionRef.current);
+      // Diversificação: nunca mais do que X% do capital numa só moeda.
+      const room = diversificationRoom({
+        totalCapital: capitalRef.current,
+        exposureForSymbol: exposureRef.current.get(symbol) ?? 0,
+        capPct: capRef.current,
+      });
+      if (room < r.minTrade) {
+        setLogs((l) =>
+          [
+            {
+              id: `cap-${Date.now()}`,
+              time: new Date(),
+              symbol,
+              action: "VENDA" as const,
+              amount: 0,
+              pnl: 0,
+              confidence,
+              reason: `Entrada evitada — limite de diversificação de ${capRef.current}% do capital atingido em ${symbol}.`,
+            },
+            ...l,
+          ].slice(0, 100),
+        );
+        return;
+      }
+      amount = Math.max(1, Math.min(amount, Math.floor(room)));
       // Proteções de ordem: a saída acontece no take profit, stop loss ou
       // trailing stop, conforme o caminho simulado do preço.
-      const sim = simulateProtectedTrade(
-        amount,
-        confidence / 100,
-        protectionRef.current,
-        Math.max(0.2, Math.min(1.5, Math.abs(coin.price_change_percentage_24h ?? 0) / 6 || 0.6)),
-      );
+      // Proteções escaladas pela volatilidade recente desta moeda.
+      const coinVol = recentVolatility(coin);
+      const dynamicProtection = scaleProtection(protectionRef.current, coinVol);
+      const sim = simulateProtectedTrade(amount, confidence / 100, dynamicProtection, coinVol);
       const pnl = Number(Math.max(-r.maxLossPerTrade, sim.pnl).toFixed(2));
       const exitReason =
-        `${signal.reason} · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)` +
+        `${signal.reason} · ${strat.note} · SL ${dynamicProtection.stopLossPct}% / TP ${dynamicProtection.takeProfitPct}% (volatilidade ${coinVol.toFixed(2)}%) · saída por ${exitLabels[sim.exit]} (${sim.movePct}%)` +
+        (sentimentNote ? ` · ${sentimentNote}` : "") +
         (memoryNote ? ` · ${memoryNote}` : "");
 
       if (pnl < 0 && dayLoss.current + Math.abs(pnl) > r.maxLossPerDay) {
@@ -443,6 +520,11 @@ export function useJarvis(userId: string, coins: Coin[]) {
           body: `Ordem simulada de ${amount}€ com confiança ${confidence}%. ${exitReason}`,
         }).catch(() => undefined);
       }
+
+      tradeTimesRef.current = [Date.now(), ...tradeTimesRef.current].slice(0, 60);
+      cooldownRef.current.set(symbol, Date.now());
+      exposureRef.current.set(symbol, (exposureRef.current.get(symbol) ?? 0) + amount);
+      setShockNote("");
 
       const { data } = await supabase
         .from("trades")
@@ -573,5 +655,17 @@ export function useJarvis(userId: string, coins: Coin[]) {
     setAggression: updateAggression,
     plan,
     limits: limitsFor(plan),
+    maxTradesPerHour,
+    setMaxTradesPerHour: updateMaxTradesPerHour,
+    diversificationCap,
+    setDiversificationCap: updateDiversificationCap,
+    useSentiment,
+    setUseSentiment: updateUseSentiment,
+    sandbox,
+    setSandbox: updateSandbox,
+    strategyChoice,
+    setStrategyChoice: updateStrategyChoice,
+    sentiment,
+    shockNote,
   };
 }
