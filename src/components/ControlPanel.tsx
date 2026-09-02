@@ -66,7 +66,6 @@ const fmtTime = (s: number) =>
   `${String(Math.floor(s / 3600)).padStart(2, "0")}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 export function ControlPanel({ engine, selectedCount }: { engine: Engine; selectedCount: number }) {
-  const [amount, setAmount] = useState(500);
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
