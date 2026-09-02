@@ -149,7 +149,13 @@ export function MoneyModeCard({ userId, hours }: { userId: string; hours: number
                 ? ` · último ciclo ${new Date(bot.data.last_tick_at).toLocaleTimeString("pt-PT")}`
                 : ""}
             </p>
+            {active && bot.data?.real_wait_reason && (
+              <p className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-[10px] leading-relaxed text-amber-200">
+                IA em espera: {bot.data.real_wait_reason}
+              </p>
+            )}
           </div>
+
 
           {value && (
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
