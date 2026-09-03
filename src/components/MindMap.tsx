@@ -42,6 +42,7 @@ export function MindMap({
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const real = useRealDecision(userId);
+  const { evaluate } = real;
   const detailRef = useRef<HTMLDivElement | null>(null);
 
   const memory = useQuery({
@@ -83,7 +84,7 @@ export function MindMap({
       return {
         coin,
         signal,
-        decision: real.evaluate(coin, signal),
+        decision: evaluate(coin, signal),
         pnl: Number(pnl.toFixed(2)),
         trades: own.length,
         radius,
@@ -91,7 +92,7 @@ export function MindMap({
         y: CENTER + Math.sin(angle) * 150,
       };
     });
-  }, [coins, logs, real]);
+  }, [coins, logs, evaluate]);
 
   useEffect(() => {
     if (activeId && !nodes.some((n) => n.coin.id === activeId)) setActiveId(null);
