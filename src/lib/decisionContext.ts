@@ -51,8 +51,10 @@ export type NodeDecision = {
 export type EvaluateArgs = {
   coin: Coin;
   signal: Signal;
-  /** Quantidade detida desta moeda (0 quando não há posição). */
+  /** Quantidade da posição no livro (0 quando não há posição). */
   held: number;
+  /** Saldo livre desta moeda na Binance do utilizador. */
+  realFree: number;
   aggression: string | null | undefined;
   learnedConfidence: number;
   userFloor: number;
@@ -130,7 +132,7 @@ export function evaluateRealNode(args: EvaluateArgs): NodeDecision {
   }
 
   if (held > 0) {
-    if (held <= 0) {
+    if (args.realFree <= 0) {
       return {
         status: "no_holdings",
         executable: false,
