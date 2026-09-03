@@ -46,7 +46,10 @@ import {
   diversificationRoom,
   hourlyCapReached,
   recentVolatility,
-  scaleProtection,
+  protectionForPosition,
+  asTradeDirection,
+  directionAllows,
+  type TradeDirection,
 } from "@/lib/risk";
 import { resolveStrategy, type StrategyName } from "@/lib/strategies";
 import { fetchSentiment, sentimentAdjust, type Sentiment } from "@/lib/sentiment";
@@ -100,6 +103,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const [shockNote, setShockNote] = useState<string>("");
   const [positions, setPositions] = useState<SimPosition[]>([]);
   const [minConfidence, setMinConfidence] = useState(55);
+  const [tradeDirection, setTradeDirection] = useState<TradeDirection>("ambos");
+  const [fastExit, setFastExit] = useState(true);
   const dayLoss = useRef(0);
 
   const coinsRef = useRef(coins);
@@ -123,6 +128,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const capitalRef = useRef(0);
   const positionsRef = useRef<SimPosition[]>([]);
   const minConfRef = useRef(55);
+  const directionRef = useRef<TradeDirection>("ambos");
+  const fastExitRef = useRef(true);
   const availRef = useRef(0);
   const investRef = useRef(0);
   coinsRef.current = coins;
@@ -137,6 +144,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
   strategyChoiceRef.current = strategyChoice;
   capitalRef.current = available + invested;
   minConfRef.current = minConfidence;
+  directionRef.current = tradeDirection;
+  fastExitRef.current = fastExit;
   availRef.current = available;
   investRef.current = invested;
 
@@ -256,6 +265,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
         setMinConfidence(
           Number((settings.data as { user_min_confidence?: number }).user_min_confidence ?? 55),
         );
+        setTradeDirection(
+          asTradeDirection((settings.data as { trade_direction?: string }).trade_direction),
+        );
+        setFastExit(Boolean((settings.data as { fast_exit?: boolean }).fast_exit ?? true));
         setProtection({
           takeProfitPct: Number(settings.data.take_profit_pct ?? defaultProtection.takeProfitPct),
           stopLossPct: Number(settings.data.stop_loss_pct ?? defaultProtection.stopLossPct),
@@ -407,6 +420,18 @@ export function useJarvis(userId: string, coins: Coin[]) {
     );
     setMinConfidence(v);
     void persistSettings({ user_min_confidence: v });
+  };
+
+  /** Direção permitida à IA (só compra, só venda ou ambos). */
+  const updateTradeDirection = (v: TradeDirection) => {
+    setTradeDirection(v);
+    void persistSettings({ trade_direction: v });
+  };
+
+  /** Saídas rápidas: rede de segurança mais firme em posições pequenas. */
+  const updateFastExit = (v: boolean) => {
+    setFastExit(v);
+    void persistSettings({ fast_exit: v });
   };
 
 
@@ -600,7 +625,12 @@ export function useJarvis(userId: string, coins: Coin[]) {
       for (const pos of positionsRef.current) {
         const coin = coinsRef.current.find((c) => c.id === pos.coin_id);
         if (!coin) continue;
-        const dyn = scaleProtection(protectionRef.current, recentVolatility(coin));
+        const dyn = protectionForPosition({
+          base: protectionRef.current,
+          volatilityPct: recentVolatility(coin),
+          positionValue: pos.invested,
+          fastExit: fastExitRef.current,
+        });
         const forced = forcedExit(pos, coin.current_price, dyn);
         if (!forced.exit) {
           if (coin.current_price > pos.peak_price) {
@@ -630,6 +660,9 @@ export function useJarvis(userId: string, coins: Coin[]) {
         .map((c) => ({ coin: c, signal: analyse(c), position: held.get(c.id) ?? null }))
         .filter(({ signal, position }) =>
           position ? signal.action === "VENDER" : signal.action === "COMPRAR",
+        )
+        .filter(({ signal }) =>
+          directionAllows(directionRef.current, signal.action as "COMPRAR" | "VENDER"),
         )
         .filter(({ signal }) => passesAggression(signal, aggressionRef.current));
       if (!candidates.length) return;
@@ -918,6 +951,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
     positions,
     minConfidence,
     setMinConfidence: updateMinConfidence,
+    tradeDirection,
+    setTradeDirection: updateTradeDirection,
+    fastExit,
+    setFastExit: updateFastExit,
   };
 
 }
