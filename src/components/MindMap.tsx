@@ -4,6 +4,8 @@ import { analyse, eur, pct, type Coin, type Signal } from "@/lib/market";
 import type { TradeLog } from "@/lib/useJarvis";
 import { patternFor } from "@/lib/brain";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealDecision } from "@/lib/useRealDecision";
+import type { NodeDecision } from "@/lib/decisionContext";
 
 type NodeData = {
   coin: Coin;
@@ -13,6 +15,7 @@ type NodeData = {
   pnl: number;
   trades: number;
   radius: number;
+  decision: NodeDecision | null;
 };
 
 const SIZE = 420;
@@ -38,6 +41,7 @@ export function MindMap({
   userId: string;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const real = useRealDecision(userId);
   const detailRef = useRef<HTMLDivElement | null>(null);
 
   const memory = useQuery({
@@ -79,6 +83,7 @@ export function MindMap({
       return {
         coin,
         signal,
+        decision: real.evaluate(coin, signal),
         pnl: Number(pnl.toFixed(2)),
         trades: own.length,
         radius,
@@ -86,7 +91,7 @@ export function MindMap({
         y: CENTER + Math.sin(angle) * 150,
       };
     });
-  }, [coins, logs]);
+  }, [coins, logs, real]);
 
   useEffect(() => {
     if (activeId && !nodes.some((n) => n.coin.id === activeId)) setActiveId(null);
@@ -112,6 +117,8 @@ export function MindMap({
   };
 
   const activeSignals = nodes.filter((n) => n.signal.action !== "AGUARDAR").length;
+  const readyCount = nodes.filter((n) => n.decision?.executable).length;
+  const edgeCount = nodes.filter((n) => n.decision?.hasEdge).length;
 
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -125,9 +132,20 @@ export function MindMap({
             {activeSignals} SINAL(IS) ATIVO(S)
           </span>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Toca num nó para ver o raciocínio por trás da última decisão.
-        </p>
+        {real.realMode ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Modo <span className="text-accent">dinheiro real</span>: o mapa usa o mesmo contexto da
+            automação — limite de confiança real e saldo executável ({readyCount} pronta(s) a
+            executar de {edgeCount} com sinal técnico). Toca num nó para ver o motivo.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Toca num nó para ver o raciocínio por trás da última decisão.
+          </p>
+        )}
+        {real.realMode && real.blocked && (
+          <p className="mt-1 text-[11px] text-destructive">{real.blocked}</p>
+        )}
 
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -196,6 +214,9 @@ export function MindMap({
           {nodes.map((n) => {
             const tone = toneFor(n.signal.action);
             const on = n.coin.id === activeId;
+            const ready = Boolean(n.decision?.executable);
+            const blockedEdge = Boolean(n.decision && !n.decision.executable && n.decision.hasEdge);
+            const dim = Boolean(n.decision) && !ready;
             return (
               <g
                 key={n.coin.id}
@@ -213,8 +234,20 @@ export function MindMap({
                   cy={n.y}
                   r={n.radius + (on ? 9 : 6)}
                   fill={tone}
-                  opacity={on ? 0.28 : 0.12}
+                  opacity={dim ? 0.05 : on ? 0.28 : 0.12}
                 />
+                {ready && (
+                  <circle
+                    cx={n.x}
+                    cy={n.y}
+                    r={n.radius + 11}
+                    fill="none"
+                    stroke={tone}
+                    strokeWidth={1.4}
+                    strokeOpacity={0.9}
+                    style={{ animation: "pulse-ring 2.2s ease-in-out infinite" }}
+                  />
+                )}
                 <circle
                   cx={n.x}
                   cy={n.y}
@@ -222,7 +255,19 @@ export function MindMap({
                   fill="var(--card)"
                   stroke={n.pnl === 0 ? tone : n.pnl > 0 ? "var(--success)" : "var(--destructive)"}
                   strokeWidth={on ? 2.6 : 1.6}
+                  strokeOpacity={dim ? 0.45 : 1}
+                  strokeDasharray={blockedEdge ? "4 3" : undefined}
                 />
+                {blockedEdge && (
+                  <text
+                    x={n.x + n.radius + 3}
+                    y={n.y - n.radius + 2}
+                    fill="var(--warning)"
+                    style={{ font: "600 10px var(--font-display)" }}
+                  >
+                    !
+                  </text>
+                )}
                 <text
                   x={n.x}
                   y={n.y + 3.5}
@@ -256,6 +301,17 @@ export function MindMap({
           <span className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-warning" /> em espera
           </span>
+          {real.realMode && (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full border border-primary" /> pronta a executar em
+                real
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-warning">!</span> tem sinal mas não é executável agora
+              </span>
+            </>
+          )}
           <span>tamanho = confiança · contorno = resultado acumulado</span>
         </div>
       </div>
@@ -326,6 +382,31 @@ export function MindMap({
                 </p>
               </div>
             </div>
+
+            {active.decision && (
+              <div
+                className={`mt-3 rounded-md border p-2.5 ${
+                  active.decision.executable
+                    ? "border-success/40 bg-success/5"
+                    : "border-warning/40 bg-warning/5"
+                }`}
+              >
+                <p
+                  className={`text-[10px] uppercase tracking-widest ${
+                    active.decision.executable ? "text-success" : "text-warning"
+                  }`}
+                >
+                  Modo real · {active.decision.label}
+                </p>
+                <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                  {active.decision.detail}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Limite real exigido {active.decision.threshold.toFixed(0)}% · confiança técnica{" "}
+                  {active.signal.confidence}% · saldo livre {real.quoteFree.toFixed(2)} {real.quote}
+                </p>
+              </div>
+            )}
 
             <p className="mt-3 text-[10px] uppercase tracking-widest text-muted-foreground">
               Indicadores cruzados ({active.signal.agree} a favor · {active.signal.against} contra)
