@@ -166,6 +166,7 @@ export type Database = {
           day_loss_date: string
           diversification_cap_pct: number
           duration_hours: number
+          fast_exit: boolean
           last_tick_at: string | null
           max_loss_day: number
           max_loss_trade: number
@@ -183,6 +184,7 @@ export type Database = {
           stop_loss_pct: number
           strategy: string
           take_profit_pct: number
+          trade_direction: string
           trailing_stop_pct: number
           updated_at: string
           use_sentiment: boolean
@@ -196,6 +198,7 @@ export type Database = {
           day_loss_date?: string
           diversification_cap_pct?: number
           duration_hours?: number
+          fast_exit?: boolean
           last_tick_at?: string | null
           max_loss_day?: number
           max_loss_trade?: number
@@ -213,6 +216,7 @@ export type Database = {
           stop_loss_pct?: number
           strategy?: string
           take_profit_pct?: number
+          trade_direction?: string
           trailing_stop_pct?: number
           updated_at?: string
           use_sentiment?: boolean
@@ -226,6 +230,7 @@ export type Database = {
           day_loss_date?: string
           diversification_cap_pct?: number
           duration_hours?: number
+          fast_exit?: boolean
           last_tick_at?: string | null
           max_loss_day?: number
           max_loss_trade?: number
@@ -243,6 +248,7 @@ export type Database = {
           stop_loss_pct?: number
           strategy?: string
           take_profit_pct?: number
+          trade_direction?: string
           trailing_stop_pct?: number
           updated_at?: string
           use_sentiment?: boolean
