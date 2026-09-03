@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { useJarvis } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
 import { AGGRESSION_LIST, aggressionProfiles } from "@/lib/aggression";
+import { TRADE_DIRECTIONS } from "@/lib/risk";
 import { loadFeedback, pulseFeedback, saveFeedback } from "@/lib/feedback";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -155,6 +156,35 @@ export function ControlPanel({
           <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
             {aggressionProfiles[engine.aggression].description} O limite de perda diária aplica-se
             em qualquer modo.
+          </p>
+        </div>
+
+        <div className="mt-4">
+          <span className="text-[11px] uppercase tracking-widest text-muted-foreground">
+            Direção das operações
+          </span>
+          <div className="mt-1 grid grid-cols-3 gap-1.5">
+            {TRADE_DIRECTIONS.map((d) => {
+              const on = engine.tradeDirection === d.key;
+              return (
+                <button
+                  key={d.key}
+                  onClick={() => engine.setTradeDirection(d.key)}
+                  aria-pressed={on}
+                  className={`rounded-md border px-2 py-2 font-display text-[10px] tracking-widest transition-all ${
+                    on
+                      ? "border-primary/70 bg-primary/15 text-primary shadow-[0_0_18px_-6px_var(--primary)]"
+                      : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+            {TRADE_DIRECTIONS.find((d) => d.key === engine.tradeDirection)?.description} Aplica-se
+            igual em simulação e em dinheiro real.
           </p>
         </div>
 
@@ -321,6 +351,20 @@ export function ControlPanel({
             onChange={(v) => engine.setProtection({ ...engine.protection, trailingStopPct: v })}
           />
         </div>
+
+        <button
+          onClick={() => engine.setFastExit(!engine.fastExit)}
+          aria-pressed={engine.fastExit}
+          className={`hud-btn mt-4 w-full px-3 py-2 text-[10px] ${
+            engine.fastExit ? "hud-btn-primary" : "hud-btn-ghost"
+          }`}
+        >
+          SAÍDAS RÁPIDAS {engine.fastExit ? "ON" : "OFF"}
+        </button>
+        <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+          Com saídas rápidas ligadas, posições pequenas fecham com alvos e stops mais apertados (e
+          trailing sempre ativo), em vez de ficarem à espera do sinal de venda da IA.
+        </p>
       </section>
 
       <section className="hud-panel p-5">

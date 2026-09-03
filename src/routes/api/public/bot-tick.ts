@@ -12,7 +12,12 @@ import {
 import { limitsFor } from "@/lib/plans";
 import { exitLabels } from "@/lib/protection";
 import { afterBuy, closeResult, forcedExit, type SimPosition } from "@/lib/positions";
-import { recentVolatility, scaleProtection } from "@/lib/risk";
+import {
+  recentVolatility,
+  protectionForPosition,
+  asTradeDirection,
+  directionAllows,
+} from "@/lib/risk";
 import {
   nextMinConfidence,
   nextWeight,
@@ -240,6 +245,9 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             .maybeSingle();
           const simAvailable = Number(wallet?.available ?? 0);
           const simInvested = Number(wallet?.invested ?? 0);
+
+          // Direção permitida à IA (idêntica em simulação e dinheiro real).
+          const direction = asTradeDirection((s as { trade_direction?: string }).trade_direction);
 
           const baseProtection = {
             takeProfitPct: Number(s.take_profit_pct ?? 2.5),
@@ -503,7 +511,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           for (const pos of positions) {
             const coin = priceById.get(pos.coin_id);
             if (!coin) continue;
-            const dyn = scaleProtection(baseProtection, recentVolatility(coin));
+            const dyn = protectionForPosition({
+              base: baseProtection,
+              volatilityPct: recentVolatility(coin),
+              positionValue: Number(pos.invested ?? 0),
+              fastExit: Boolean((s as { fast_exit?: boolean }).fast_exit ?? true),
+            });
             const forced = forcedExit(pos, coin.current_price, dyn);
             if (!forced.exit) {
               if (coin.current_price > pos.peak_price) {
@@ -538,6 +551,9 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             .filter(({ signal, position }) =>
               position ? signal.action === "VENDER" : signal.action === "COMPRAR",
             )
+            .filter(({ signal }) =>
+              directionAllows(direction, signal.action as "COMPRAR" | "VENDER"),
+            )
             .filter(({ signal }) => passesAggression(signal, aggression));
 
           const candidates = actionable.filter(({ c, position }) => {
@@ -551,9 +567,13 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               ? (realBlock ??
                 (!canBuyReal
                   ? `Saldo real insuficiente: tens ${freeQuote.toFixed(2)} ${quote} livre e a Binance exige pelo menos 5 ${quote} por ordem.`
-                  : onlySells
-                    ? "O mercado só dá sinais de venda das moedas que ainda não tens compradas — a IA espera por um sinal de compra."
-                    : "Nenhum sinal com confiança suficiente neste momento — a IA está a vigiar o mercado."))
+                  : direction === "venda"
+                    ? "Modo SÓ VENDA: a IA não abre novas posições e ainda não há saídas a fazer."
+                    : direction === "compra"
+                      ? "Modo SÓ COMPRA: sem sinais de entrada agora — as saídas ficam à rede de segurança."
+                      : onlySells
+                        ? "O mercado só dá sinais de venda das moedas que ainda não tens compradas — a IA espera por um sinal de compra."
+                        : "Nenhum sinal com confiança suficiente neste momento — a IA está a vigiar o mercado."))
               : null;
 
             await supabaseAdmin
