@@ -24,6 +24,82 @@ export function scaleProtection(base: Protection, volatilityPct: number): Protec
   };
 }
 
+/**
+ * Valor de referência (na moeda da carteira) de uma posição "normal". Posições
+ * abaixo deste valor são consideradas pequenas e ganham saídas mais apertadas.
+ */
+export const SMALL_POSITION_REFERENCE = 100;
+
+/**
+ * Rede de segurança mais firme para posições pequenas: quanto menor o valor
+ * investido, mais apertados ficam o take profit, o stop loss e o trailing, para
+ * que a posição não fique aberta indefinidamente à espera do sinal da IA.
+ *
+ * O caminho de venda raciocinado da IA continua intacto — isto apenas endurece
+ * o backstop. Pode ser desligado pelo utilizador (`fastExit = false`).
+ */
+export function protectionForPosition(args: {
+  base: Protection;
+  volatilityPct: number;
+  positionValue: number;
+  fastExit: boolean;
+  reference?: number;
+}): Protection {
+  const scaled = scaleProtection(args.base, args.volatilityPct);
+  if (!args.fastExit) return scaled;
+
+  const reference = Math.max(1, args.reference ?? SMALL_POSITION_REFERENCE);
+  const ratio = Math.max(0, args.positionValue) / reference;
+  // 0.40 para posições minúsculas, 1 a partir do valor de referência.
+  const sizeFactor = Math.max(0.4, Math.min(1, Math.sqrt(ratio) || 0.4));
+  const round = (v: number) => Number(v.toFixed(2));
+
+  const takeProfitPct = round(Math.max(0.3, scaled.takeProfitPct * sizeFactor));
+  const stopLossPct = round(Math.max(0.25, scaled.stopLossPct * sizeFactor));
+  // Trailing sempre ativo em saídas rápidas: no máximo 40% do take profit.
+  const trailingBase = scaled.trailingStopPct > 0 ? scaled.trailingStopPct : takeProfitPct;
+  const trailingStopPct = round(Math.max(0.2, Math.min(trailingBase, takeProfitPct * 0.4)));
+
+  return { takeProfitPct, stopLossPct, trailingStopPct };
+}
+
+/** Direção de operação escolhida pelo utilizador. */
+export type TradeDirection = "compra" | "venda" | "ambos";
+
+export const TRADE_DIRECTIONS: { key: TradeDirection; label: string; description: string }[] = [
+  {
+    key: "compra",
+    label: "SÓ COMPRA",
+    description:
+      "A IA só abre novas posições. As saídas ficam por conta do take profit, stop loss e trailing.",
+  },
+  {
+    key: "venda",
+    label: "SÓ VENDA",
+    description:
+      "A IA não abre novas posições — apenas gere e fecha as moedas que já tens em carteira.",
+  },
+  {
+    key: "ambos",
+    label: "AMBOS",
+    description: "A IA raciocina sobre compras e vendas (comportamento normal).",
+  },
+];
+
+export const asTradeDirection = (v: unknown): TradeDirection =>
+  v === "compra" || v === "venda" ? v : "ambos";
+
+/** Verdadeiro quando a direção escolhida permite este sinal. */
+export function directionAllows(
+  direction: TradeDirection,
+  action: "COMPRAR" | "VENDER" | "AGUARDAR",
+): boolean {
+  if (action === "COMPRAR") return direction !== "venda";
+  if (action === "VENDER") return direction !== "compra";
+  return false;
+}
+
+
 /** Volatilidade recente (%) usada para escalar as proteções. */
 export function recentVolatility(coin: Coin): number {
   const series = coin.sparkline_in_7d?.price ?? [];
