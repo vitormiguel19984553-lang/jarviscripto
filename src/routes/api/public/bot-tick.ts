@@ -539,6 +539,25 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           for (const pos of positions) {
             const coin = priceById.get(pos.coin_id);
             if (!coin) continue;
+
+            // Carência: uma posição recém-aberta nunca é fechada pela rede de
+            // segurança no mesmo tick (evita ciclos compra→venda imediatos).
+            if (isFreshPosition(openedAtBySymbol.get(pos.symbol), 90)) continue;
+
+            // Anomalia: entrada média implausível face ao mercado (ex.: moeda de
+            // cotação errada). Registamos e não forçamos saída neste tick.
+            const anomaly = entryAnomaly(pos, coin.current_price, 10);
+            if (anomaly) {
+              await supabaseAdmin.from("ia_pareceres").insert({
+                user_id: s.user_id,
+                symbol: pos.symbol,
+                model: "sanidade-posicao",
+                verdict: "anomalia",
+                rationale: `Posição de ${pos.symbol} com dados improváveis (${anomaly}). Saída forçada suspensa neste ciclo para evitar compra/venda repetida.`,
+              });
+              continue;
+            }
+
             const dyn = protectionForPosition({
               base: baseProtection,
               volatilityPct: recentVolatility(coin),
@@ -546,6 +565,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               fastExit: Boolean((s as { fast_exit?: boolean }).fast_exit ?? true),
             });
             const forced = forcedExit(pos, coin.current_price, dyn);
+
             if (!forced.exit) {
               if (coin.current_price > pos.peak_price) {
                 await supabaseAdmin
