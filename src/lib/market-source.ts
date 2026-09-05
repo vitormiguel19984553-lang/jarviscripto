@@ -56,12 +56,24 @@ async function binanceSeries(symbol: string) {
   return rows.map((r) => Number(r[4]));
 }
 
-async function fromBinance(): Promise<Coin[]> {
-  // Preços da Binance são em USDT; convertemos para EUR com o par EURUSDT.
+/**
+ * Quantos EUR vale 1 USDT (par EURUSDT da Binance).
+ *
+ * Todos os preços da app estão em EUR; as ordens reais na Binance são cotadas
+ * em USDT/USDC. Sem esta conversão, uma posição real aberta parece logo ~18%
+ * negativa e aciona o stop loss no tick seguinte.
+ */
+export async function usdtToEurRate(): Promise<number> {
   const eurUsdt = await json<{ price: string }>(
     "https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT",
   ).then((r) => Number(r.price));
-  const usdtToEur = eurUsdt > 0 ? 1 / eurUsdt : 1;
+  if (!(eurUsdt > 0)) throw new Error("eurusdt indisponível");
+  return 1 / eurUsdt;
+}
+
+async function fromBinance(): Promise<Coin[]> {
+  const usdtToEur = await usdtToEurRate();
+
 
   const symbols = JSON.stringify(COIN_META.map((c) => c.binance));
   const tickers = await json<

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { analyse, type Coin } from "@/lib/market";
-import { fetchMarketsFromSource } from "@/lib/market-source";
+import { fetchMarketsFromSource, usdtToEurRate } from "@/lib/market-source";
 import {
   applyOutcome,
   emptyRow,
@@ -11,7 +11,15 @@ import {
 } from "@/lib/brain";
 import { limitsFor } from "@/lib/plans";
 import { exitLabels } from "@/lib/protection";
-import { afterBuy, closeResult, forcedExit, type SimPosition } from "@/lib/positions";
+import {
+  afterBuy,
+  closeResult,
+  entryAnomaly,
+  forcedExit,
+  isFreshPosition,
+  type SimPosition,
+} from "@/lib/positions";
+
 import {
   recentVolatility,
   protectionForPosition,
@@ -69,6 +77,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           return Response.json({ error: "market_unavailable" }, { status: 502 });
         }
         const priceById = new Map(coins.map((c) => [c.id, c]));
+
+        // Câmbio USDT→EUR: os preços da app estão em EUR e as ordens reais na
+        // Binance são cotadas em USDT/USDC. Sem isto, uma posição real abriria
+        // logo ~18% "negativa" e o stop loss fecharia-a no tick seguinte.
+        const usdtToEur = await usdtToEurRate().catch(() => null);
+
 
         // ── Alertas de preço da watchlist ───────────────────────────────────
         let priceAlertsFired = 0;
@@ -163,7 +177,10 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             5,
             Number((s as { real_trade_amount?: number }).real_trade_amount ?? 10),
           );
-          if (s.real_mode) {
+          if (s.real_mode && !usdtToEur) {
+            realBlock =
+              "câmbio EUR/USDT indisponível neste momento — a IA não abre ordens reais sem conversão fiável";
+          } else if (s.real_mode) {
             const { data: conn } = await supabaseAdmin
               .from("exchange_connections")
               .select("real_trading_enabled")
@@ -193,16 +210,20 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           // Escolhe a cotação com mais saldo livre (USDT ou USDC).
           const quote = freeOf("USDC") > freeOf("USDT") ? "USDC" : "USDT";
           const freeQuote = freeOf(quote);
+          /** Converte um valor em EUR (moeda da app) para a cotação da Binance. */
+          const fx = usdtToEur && usdtToEur > 0 ? usdtToEur : 1;
+          const eurToQuote = (v: number) => Number((v / fx).toFixed(2));
+          const freeQuoteEur = Number((freeQuote * fx).toFixed(2));
           // A Binance exige ~5 USDT por ordem: se o saldo livre for menor que o
           // valor configurado, usa-se o saldo disponível em vez de não operar.
-          const realOrderAmount = Math.min(realAmount, Math.floor(freeQuote * 100) / 100);
-          const canBuyReal = realOrderAmount >= 5;
+          const realOrderAmount = Math.min(realAmount, Math.floor(freeQuoteEur * 100) / 100);
+          const canBuyReal = eurToQuote(realOrderAmount) >= 5;
 
           // ── Livro de posições (idêntico em simulação e em dinheiro real) ───
           const { data: posRows } = await supabaseAdmin
             .from("sim_positions")
             .select(
-              "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence",
+              "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence,opened_at",
             )
             .eq("user_id", s.user_id);
           const positions: SimPosition[] = (posRows ?? []).map((p) => ({
@@ -217,7 +238,11 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             entry_pattern_desc: p.entry_pattern_desc,
             entry_confidence: Number(p.entry_confidence),
           }));
+          const openedAtBySymbol = new Map(
+            (posRows ?? []).map((p) => [p.symbol, (p as { opened_at?: string }).opened_at ?? null]),
+          );
           const heldByCoin = new Map(positions.map((p) => [p.coin_id, p]));
+
 
           const { data: prefs } = await supabaseAdmin
             .from("alert_settings")
@@ -403,21 +428,24 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
             if (s.real_mode) {
               if (!realCtx?.creds) return false;
-              if (freeOf(pos.symbol) <= 0) return false;
+              const freeBase = freeOf(pos.symbol);
+              if (freeBase <= 0) return false;
+              // Valor a vender em EUR (app) → convertido para a cotação da Binance.
+              const sellEur = Math.min(res.proceeds, freeBase * coin.current_price);
+              const sellQuote = Math.max(5, eurToQuote(sellEur));
               try {
                 const { placeMarketOrder } = await import("@/lib/exchange.server");
                 const order = await placeMarketOrder(realCtx.creds, {
                   symbol: `${pos.symbol}${quote}`,
                   side: "SELL",
-                  quoteOrderQty: Math.max(5, Math.min(res.proceeds, pos.quantity * coin.current_price)),
+                  quoteOrderQty: sellQuote,
                 });
                 realNote = ` · ordem real de venda na tua Binance (#${order.orderId})`;
-                proceeds = Number(
-                  Math.max(5, Math.min(res.proceeds, pos.quantity * coin.current_price)).toFixed(2),
-                );
+                proceeds = Number((sellQuote * fx).toFixed(2));
               } catch (e) {
                 await supabaseAdmin.from("alerts").insert({
                   user_id: s.user_id,
+
                   kind: "real_order_failed",
                   title: "Venda real não executada",
                   body: `${pos.symbol}: ${e instanceof Error ? e.message : "erro desconhecido"}.`,
@@ -511,6 +539,25 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           for (const pos of positions) {
             const coin = priceById.get(pos.coin_id);
             if (!coin) continue;
+
+            // Carência: uma posição recém-aberta nunca é fechada pela rede de
+            // segurança no mesmo tick (evita ciclos compra→venda imediatos).
+            if (isFreshPosition(openedAtBySymbol.get(pos.symbol), 90)) continue;
+
+            // Anomalia: entrada média implausível face ao mercado (ex.: moeda de
+            // cotação errada). Registamos e não forçamos saída neste tick.
+            const anomaly = entryAnomaly(pos, coin.current_price, 10);
+            if (anomaly) {
+              await supabaseAdmin.from("ia_pareceres").insert({
+                user_id: s.user_id,
+                symbol: pos.symbol,
+                model: "sanidade-posicao",
+                verdict: "anomalia",
+                rationale: `Posição de ${pos.symbol} com dados improváveis (${anomaly}). Saída forçada suspensa neste ciclo para evitar compra/venda repetida.`,
+              });
+              continue;
+            }
+
             const dyn = protectionForPosition({
               base: baseProtection,
               volatilityPct: recentVolatility(coin),
@@ -518,6 +565,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               fastExit: Boolean((s as { fast_exit?: boolean }).fast_exit ?? true),
             });
             const forced = forcedExit(pos, coin.current_price, dyn);
+
             if (!forced.exit) {
               if (coin.current_price > pos.peak_price) {
                 await supabaseAdmin
@@ -726,15 +774,19 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           let boughtQty = 0;
           if (s.real_mode) {
             if (!realCtx?.creds) continue;
-            if (freeOf(quote) < amount) continue;
+            const buyQuote = Math.max(5, eurToQuote(amount));
+            if (freeOf(quote) < buyQuote) continue;
             try {
               const { placeMarketOrder } = await import("@/lib/exchange.server");
               const order = await placeMarketOrder(realCtx.creds, {
                 symbol: `${symbol}${quote}`,
                 side: "BUY",
-                quoteOrderQty: amount,
+                quoteOrderQty: buyQuote,
               });
+              // Quantidade realmente preenchida (na moeda base). O valor
+              // investido fica sempre em EUR, como o resto da app.
               boughtQty = Number(order.executedQty) || amount / coin.current_price;
+              amount = Number((buyQuote * fx).toFixed(2));
               realNote = ` · ordem real na tua Binance (#${order.orderId})`;
             } catch (e) {
               await supabaseAdmin.from("alerts").insert({
@@ -749,14 +801,28 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             if (amount > simAvailable) continue;
           }
 
-          const nextPos = afterBuy(position, {
+          // Posição nova: quantidade e entrada média sempre recalculadas a
+          // partir desta compra (nunca herdadas de uma posição já fechada).
+          const nextPos = afterBuy(null, {
             symbol,
             coinId: coin.id,
-            price: boughtQty > 0 ? amount / boughtQty : coin.current_price,
+            price: coin.current_price,
             amount,
+            ...(boughtQty > 0 ? { quantity: boughtQty } : {}),
             pattern,
             confidence,
           });
+          const openAnomaly = entryAnomaly(nextPos, coin.current_price, 10);
+          if (openAnomaly) {
+            await supabaseAdmin.from("ia_pareceres").insert({
+              user_id: s.user_id,
+              symbol,
+              model: "sanidade-posicao",
+              verdict: "anomalia",
+              rationale: `Entrada de ${symbol} guardada com valores improváveis (${openAnomaly}). A rede de segurança só pode atuar no próximo ciclo.`,
+            });
+          }
+
           await supabaseAdmin.from("sim_positions").upsert(
             {
               user_id: s.user_id,
@@ -769,7 +835,9 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               entry_pattern_key: nextPos.entry_pattern_key,
               entry_pattern_desc: nextPos.entry_pattern_desc,
               entry_confidence: nextPos.entry_confidence,
+              opened_at: nowIso,
               updated_at: nowIso,
+
             },
             { onConflict: "user_id,symbol" },
           );
