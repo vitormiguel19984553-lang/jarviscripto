@@ -774,15 +774,19 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           let boughtQty = 0;
           if (s.real_mode) {
             if (!realCtx?.creds) continue;
-            if (freeOf(quote) < amount) continue;
+            const buyQuote = Math.max(5, eurToQuote(amount));
+            if (freeOf(quote) < buyQuote) continue;
             try {
               const { placeMarketOrder } = await import("@/lib/exchange.server");
               const order = await placeMarketOrder(realCtx.creds, {
                 symbol: `${symbol}${quote}`,
                 side: "BUY",
-                quoteOrderQty: amount,
+                quoteOrderQty: buyQuote,
               });
+              // Quantidade realmente preenchida (na moeda base). O valor
+              // investido fica sempre em EUR, como o resto da app.
               boughtQty = Number(order.executedQty) || amount / coin.current_price;
+              amount = Number((buyQuote * fx).toFixed(2));
               realNote = ` · ordem real na tua Binance (#${order.orderId})`;
             } catch (e) {
               await supabaseAdmin.from("alerts").insert({
@@ -797,14 +801,28 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             if (amount > simAvailable) continue;
           }
 
-          const nextPos = afterBuy(position, {
+          // Posição nova: quantidade e entrada média sempre recalculadas a
+          // partir desta compra (nunca herdadas de uma posição já fechada).
+          const nextPos = afterBuy(null, {
             symbol,
             coinId: coin.id,
-            price: boughtQty > 0 ? amount / boughtQty : coin.current_price,
+            price: coin.current_price,
             amount,
+            ...(boughtQty > 0 ? { quantity: boughtQty } : {}),
             pattern,
             confidence,
           });
+          const openAnomaly = entryAnomaly(nextPos, coin.current_price, 10);
+          if (openAnomaly) {
+            await supabaseAdmin.from("ia_pareceres").insert({
+              user_id: s.user_id,
+              symbol,
+              model: "sanidade-posicao",
+              verdict: "anomalia",
+              rationale: `Entrada de ${symbol} guardada com valores improváveis (${openAnomaly}). A rede de segurança só pode atuar no próximo ciclo.`,
+            });
+          }
+
           await supabaseAdmin.from("sim_positions").upsert(
             {
               user_id: s.user_id,
