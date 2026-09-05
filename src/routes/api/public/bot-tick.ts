@@ -835,7 +835,9 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               entry_pattern_key: nextPos.entry_pattern_key,
               entry_pattern_desc: nextPos.entry_pattern_desc,
               entry_confidence: nextPos.entry_confidence,
+              opened_at: nowIso,
               updated_at: nowIso,
+
             },
             { onConflict: "user_id,symbol" },
           );
