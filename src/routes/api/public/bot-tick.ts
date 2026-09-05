@@ -177,7 +177,10 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             5,
             Number((s as { real_trade_amount?: number }).real_trade_amount ?? 10),
           );
-          if (s.real_mode) {
+          if (s.real_mode && !usdtToEur) {
+            realBlock =
+              "câmbio EUR/USDT indisponível neste momento — a IA não abre ordens reais sem conversão fiável";
+          } else if (s.real_mode) {
             const { data: conn } = await supabaseAdmin
               .from("exchange_connections")
               .select("real_trading_enabled")
@@ -207,16 +210,20 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           // Escolhe a cotação com mais saldo livre (USDT ou USDC).
           const quote = freeOf("USDC") > freeOf("USDT") ? "USDC" : "USDT";
           const freeQuote = freeOf(quote);
+          /** Converte um valor em EUR (moeda da app) para a cotação da Binance. */
+          const fx = usdtToEur && usdtToEur > 0 ? usdtToEur : 1;
+          const eurToQuote = (v: number) => Number((v / fx).toFixed(2));
+          const freeQuoteEur = Number((freeQuote * fx).toFixed(2));
           // A Binance exige ~5 USDT por ordem: se o saldo livre for menor que o
           // valor configurado, usa-se o saldo disponível em vez de não operar.
-          const realOrderAmount = Math.min(realAmount, Math.floor(freeQuote * 100) / 100);
-          const canBuyReal = realOrderAmount >= 5;
+          const realOrderAmount = Math.min(realAmount, Math.floor(freeQuoteEur * 100) / 100);
+          const canBuyReal = eurToQuote(realOrderAmount) >= 5;
 
           // ── Livro de posições (idêntico em simulação e em dinheiro real) ───
           const { data: posRows } = await supabaseAdmin
             .from("sim_positions")
             .select(
-              "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence",
+              "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence,opened_at",
             )
             .eq("user_id", s.user_id);
           const positions: SimPosition[] = (posRows ?? []).map((p) => ({
@@ -231,7 +238,11 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             entry_pattern_desc: p.entry_pattern_desc,
             entry_confidence: Number(p.entry_confidence),
           }));
+          const openedAtBySymbol = new Map(
+            (posRows ?? []).map((p) => [p.symbol, (p as { opened_at?: string }).opened_at ?? null]),
+          );
           const heldByCoin = new Map(positions.map((p) => [p.coin_id, p]));
+
 
           const { data: prefs } = await supabaseAdmin
             .from("alert_settings")
