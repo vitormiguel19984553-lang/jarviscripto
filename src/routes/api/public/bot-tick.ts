@@ -428,21 +428,24 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
             if (s.real_mode) {
               if (!realCtx?.creds) return false;
-              if (freeOf(pos.symbol) <= 0) return false;
+              const freeBase = freeOf(pos.symbol);
+              if (freeBase <= 0) return false;
+              // Valor a vender em EUR (app) → convertido para a cotação da Binance.
+              const sellEur = Math.min(res.proceeds, freeBase * coin.current_price);
+              const sellQuote = Math.max(5, eurToQuote(sellEur));
               try {
                 const { placeMarketOrder } = await import("@/lib/exchange.server");
                 const order = await placeMarketOrder(realCtx.creds, {
                   symbol: `${pos.symbol}${quote}`,
                   side: "SELL",
-                  quoteOrderQty: Math.max(5, Math.min(res.proceeds, pos.quantity * coin.current_price)),
+                  quoteOrderQty: sellQuote,
                 });
                 realNote = ` · ordem real de venda na tua Binance (#${order.orderId})`;
-                proceeds = Number(
-                  Math.max(5, Math.min(res.proceeds, pos.quantity * coin.current_price)).toFixed(2),
-                );
+                proceeds = Number((sellQuote * fx).toFixed(2));
               } catch (e) {
                 await supabaseAdmin.from("alerts").insert({
                   user_id: s.user_id,
+
                   kind: "real_order_failed",
                   title: "Venda real não executada",
                   body: `${pos.symbol}: ${e instanceof Error ? e.message : "erro desconhecido"}.`,
