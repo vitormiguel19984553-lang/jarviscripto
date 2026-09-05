@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { analyse, type Coin } from "@/lib/market";
-import { fetchMarketsFromSource } from "@/lib/market-source";
+import { fetchMarketsFromSource, usdtToEurRate } from "@/lib/market-source";
 import {
   applyOutcome,
   emptyRow,
