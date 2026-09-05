@@ -78,6 +78,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
         }
         const priceById = new Map(coins.map((c) => [c.id, c]));
 
+        // Câmbio USDT→EUR: os preços da app estão em EUR e as ordens reais na
+        // Binance são cotadas em USDT/USDC. Sem isto, uma posição real abriria
+        // logo ~18% "negativa" e o stop loss fecharia-a no tick seguinte.
+        const usdtToEur = await usdtToEurRate().catch(() => null);
+
+
         // ── Alertas de preço da watchlist ───────────────────────────────────
         let priceAlertsFired = 0;
         const { data: pAlerts } = await supabaseAdmin
