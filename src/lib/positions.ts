@@ -51,7 +51,14 @@ export function forcedExit(
   return { exit: null, movePct: move };
 }
 
-/** Estado da posição depois de uma compra (preço médio ponderado). */
+/**
+ * Estado da posição depois de uma compra (preço médio ponderado).
+ *
+ * `quantity` deve ser passada quando a quantidade real preenchida é conhecida
+ * (ordem real na Binance). Nunca se reaproveita a quantidade de uma posição já
+ * fechada: quando não há posição atual, a quantidade é sempre recalculada a
+ * partir do preço desta compra.
+ */
 export function afterBuy(
   current: SimPosition | null,
   args: {
@@ -59,26 +66,52 @@ export function afterBuy(
     coinId: string;
     price: number;
     amount: number;
+    quantity?: number;
     pattern: Pattern;
     confidence: number;
   },
 ): SimPosition {
-  const qty = args.price > 0 ? args.amount / args.price : 0;
-  const quantity = Number(((current?.quantity ?? 0) + qty).toFixed(10));
-  const invested = Number(((current?.invested ?? 0) + args.amount).toFixed(2));
+  const filled =
+    args.quantity && args.quantity > 0 ? args.quantity : args.price > 0 ? args.amount / args.price : 0;
+  const base = current && current.quantity > 0 && current.invested > 0 ? current : null;
+  const quantity = Number(((base?.quantity ?? 0) + filled).toFixed(10));
+  const invested = Number(((base?.invested ?? 0) + args.amount).toFixed(2));
   return {
-    ...(current?.id ? { id: current.id } : {}),
+    ...(base?.id ? { id: base.id } : {}),
     symbol: args.symbol,
     coin_id: args.coinId,
     quantity,
     avg_entry_price: quantity > 0 ? Number((invested / quantity).toFixed(10)) : args.price,
     invested,
-    peak_price: Math.max(current?.peak_price ?? 0, args.price),
-    entry_pattern_key: current?.entry_pattern_key ?? args.pattern.key,
-    entry_pattern_desc: current?.entry_pattern_desc ?? args.pattern.description,
-    entry_confidence: current?.entry_confidence ?? args.confidence,
+    peak_price: Math.max(base?.peak_price ?? 0, args.price),
+    entry_pattern_key: base?.entry_pattern_key ?? args.pattern.key,
+    entry_pattern_desc: base?.entry_pattern_desc ?? args.pattern.description,
+    entry_confidence: base?.entry_confidence ?? args.confidence,
   };
 }
+
+/**
+ * Deteta uma entrada média implausível (ex.: moeda de cotação errada ou valor
+ * herdado de uma posição antiga). Devolve a descrição do problema ou null.
+ */
+export function entryAnomaly(
+  pos: SimPosition,
+  marketPrice: number,
+  tolerancePct = 10,
+): string | null {
+  if (!pos.avg_entry_price || !marketPrice) return null;
+  const diff = (pos.avg_entry_price / marketPrice - 1) * 100;
+  if (Math.abs(diff) <= tolerancePct) return null;
+  return `entrada média ${pos.avg_entry_price.toFixed(4)} difere ${diff.toFixed(2)}% do preço de mercado ${marketPrice.toFixed(4)}`;
+}
+
+/** Posição aberta há menos de `seconds` segundos (carência da rede de segurança). */
+export function isFreshPosition(openedAt: string | null | undefined, seconds = 90): boolean {
+  if (!openedAt) return false;
+  const t = new Date(openedAt).getTime();
+  return Number.isFinite(t) && Date.now() - t < seconds * 1000;
+}
+
 
 /** Resultado de fechar (parcial ou totalmente) uma posição ao preço atual. */
 export function closeResult(
