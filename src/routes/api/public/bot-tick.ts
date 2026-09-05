@@ -11,7 +11,15 @@ import {
 } from "@/lib/brain";
 import { limitsFor } from "@/lib/plans";
 import { exitLabels } from "@/lib/protection";
-import { afterBuy, closeResult, forcedExit, type SimPosition } from "@/lib/positions";
+import {
+  afterBuy,
+  closeResult,
+  entryAnomaly,
+  forcedExit,
+  isFreshPosition,
+  type SimPosition,
+} from "@/lib/positions";
+
 import {
   recentVolatility,
   protectionForPosition,
