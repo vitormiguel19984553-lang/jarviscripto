@@ -57,19 +57,112 @@ async function binanceSeries(symbol: string) {
 }
 
 /**
- * Quantos EUR vale 1 USDT (par EURUSDT da Binance).
+ * Quantos EUR vale 1 USDT.
  *
  * Todos os preços da app estão em EUR; as ordens reais na Binance são cotadas
  * em USDT/USDC. Sem esta conversão, uma posição real aberta parece logo ~18%
  * negativa e aciona o stop loss no tick seguinte.
+ *
+ * A Binance bloqueia pedidos de alguns servidores (HTTP 451), por isso há uma
+ * cadeia de fontes alternativas. Só falha se nenhuma responder — nunca se
+ * inventa uma taxa.
  */
-export async function usdtToEurRate(): Promise<number> {
-  const eurUsdt = await json<{ price: string }>(
-    "https://api.binance.com/api/v3/ticker/price?symbol=EURUSDT",
-  ).then((r) => Number(r.price));
-  if (!(eurUsdt > 0)) throw new Error("eurusdt indisponível");
-  return 1 / eurUsdt;
+const FX_HOSTS = [
+  "https://api.binance.com",
+  "https://api1.binance.com",
+  "https://api2.binance.com",
+  "https://api-gcp.binance.com",
+  "https://data-api.binance.vision",
+];
+
+let fxCache: { at: number; rate: number } | null = null;
+const FX_CACHE_MS = 5 * 60_000;
+
+async function fxFromBinance(): Promise<number> {
+  let lastErr: unknown = null;
+  for (const host of FX_HOSTS) {
+    try {
+      const r = await json<{ price: string }>(
+        `${host}/api/v3/ticker/price?symbol=EURUSDT`,
+      );
+      const eurUsdt = Number(r.price);
+      if (eurUsdt > 0) return 1 / eurUsdt;
+      throw new Error("eurusdt inválido");
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("binance fx indisponível");
 }
+
+async function fxFromCoinGecko(): Promise<number> {
+  const key = process.env.COINGECKO_API_KEY;
+  const res = await fetch("https://api.coingecko.com/api/v3/exchange_rates", {
+    headers: {
+      accept: "application/json",
+      ...(key ? { "x-cg-demo-api-key": key } : {}),
+    },
+  });
+  if (!res.ok) throw new Error(`coingecko rates ${res.status}`);
+  const data = (await res.json()) as {
+    rates?: Record<string, { value?: number }>;
+  };
+  // rates são em relação a 1 BTC: EUR por BTC ÷ USD por BTC ≈ EUR por USD(T).
+  const eur = Number(data.rates?.eur?.value);
+  const usd = Number(data.rates?.usd?.value);
+  if (!(eur > 0 && usd > 0)) throw new Error("coingecko rates incompletas");
+  return eur / usd;
+}
+
+async function fxFromFrankfurter(): Promise<number> {
+  const r = await json<{ rates?: Record<string, number> }>(
+    "https://api.frankfurter.app/latest?from=USD&to=EUR",
+  );
+  const v = Number(r.rates?.EUR);
+  if (!(v > 0)) throw new Error("frankfurter sem EUR");
+  return v;
+}
+
+async function fxFromExchangerateHost(): Promise<number> {
+  const r = await json<{ rates?: Record<string, number> }>(
+    "https://open.er-api.com/v6/latest/USD",
+  );
+  const v = Number(r.rates?.EUR);
+  if (!(v > 0)) throw new Error("er-api sem EUR");
+  return v;
+}
+
+export async function usdtToEurRate(): Promise<number> {
+  const now = Date.now();
+  if (fxCache && now - fxCache.at < FX_CACHE_MS) return fxCache.rate;
+
+  const sources: [string, () => Promise<number>][] = [
+    ["binance", fxFromBinance],
+    ["coingecko", fxFromCoinGecko],
+    ["frankfurter", fxFromFrankfurter],
+    ["er-api", fxFromExchangerateHost],
+  ];
+
+  for (const [name, fn] of sources) {
+    try {
+      const rate = await fn();
+      // Sanidade: EUR/USD real anda entre 0.7 e 1.3.
+      if (!(rate > 0.7 && rate < 1.3)) throw new Error(`taxa fora do esperado (${rate})`);
+      fxCache = { at: now, rate };
+      return rate;
+    } catch (err) {
+      console.error(`[fx] ${name} falhou:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  // Última rede: taxa em cache mesmo expirada é melhor que bloquear tudo.
+  if (fxCache) {
+    console.warn("[fx] a usar taxa em cache expirada");
+    return fxCache.rate;
+  }
+  throw new Error("eurusdt indisponível");
+}
+
 
 async function fromBinance(): Promise<Coin[]> {
   const usdtToEur = await usdtToEurRate();
