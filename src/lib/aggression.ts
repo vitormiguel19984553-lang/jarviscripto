@@ -57,14 +57,15 @@ export const aggressionProfiles: Record<Aggression, AggressionProfile> = {
     label: "AGRESSIVO",
     description:
       "Confiança mínima muito mais baixa, menos confirmações e espera curta entre operações na mesma moeda. As ordens são bem menores para controlar o risco e o limite diário de perda continua a ser um teto absoluto.",
-    confidenceDelta: -12,
-    sizeFactor: 0.45,
+    confidenceDelta: -20,
+    sizeFactor: 0.35,
     requireConfirmations: false,
     skipChance: 0,
     instantLearning: true,
     minAlignment: 1,
-    cooldownSec: 60,
+    cooldownSec: 30,
   },
+
 };
 
 export const profileFor = (mode: string | null | undefined): AggressionProfile =>
