@@ -41,11 +41,14 @@ export const Route = createFileRoute("/_authenticated/watchlist")({
 function WatchlistPage() {
   const { user } = Route.useRouteContext();
   const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [form, setForm] = useState({
     symbol: "bitcoin",
     direction: "above" as "above" | "below",
     price: "",
   });
+
 
   const markets = useQuery({
     queryKey: ["markets"],
@@ -64,6 +67,13 @@ function WatchlistPage() {
   const coins = markets.data ?? [];
   const coinById = new Map(coins.map((c) => [c.id, c]));
   const favorites = (watch.data ?? []).map((w) => w.symbol);
+  const q = search.trim().toLowerCase();
+  const visibleCoins = coins.filter((c) => {
+    if (onlyFavorites && !favorites.includes(c.id)) return false;
+    if (!q) return true;
+    return c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q);
+  });
+
 
   const toggleFavorite = async (symbol: string) => {
     try {
