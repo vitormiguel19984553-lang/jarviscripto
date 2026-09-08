@@ -124,9 +124,35 @@ function WatchlistPage() {
       </header>
 
       <section className="mt-6">
-        <h2 className="mb-3 text-sm tracking-widest text-primary">MERCADO</h2>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="text-sm tracking-widest text-primary">
+            MERCADO ({visibleCoins.length}/{coins.length})
+          </h2>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Procurar moeda (ex: sol, cardano)"
+            aria-label="Procurar moeda"
+            className="min-w-[200px] flex-1 rounded-md border border-border bg-secondary/50 px-3 py-2 text-sm text-foreground"
+          />
+          <button
+            type="button"
+            onClick={() => setOnlyFavorites((v) => !v)}
+            className={`rounded-md border px-3 py-2 font-display text-[11px] tracking-widest transition-colors ${
+              onlyFavorites
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            ★ SÓ FAVORITAS
+          </button>
+        </div>
+        {!visibleCoins.length && (
+          <p className="text-xs text-muted-foreground">Nenhuma moeda corresponde à procura.</p>
+        )}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {coins.map((c) => {
+          {visibleCoins.map((c) => {
+
             const fav = favorites.includes(c.id);
             const up = (c.price_change_percentage_24h ?? 0) >= 0;
             return (
