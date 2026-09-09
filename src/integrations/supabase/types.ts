@@ -738,6 +738,7 @@ export type Database = {
           plan_expires_at: string | null
           referral_code: string | null
           referred_by: string | null
+          reset_point_at: string | null
           risk_accepted_at: string | null
           trial_ends_at: string | null
         }
@@ -759,6 +760,7 @@ export type Database = {
           plan_expires_at?: string | null
           referral_code?: string | null
           referred_by?: string | null
+          reset_point_at?: string | null
           risk_accepted_at?: string | null
           trial_ends_at?: string | null
         }
@@ -780,6 +782,7 @@ export type Database = {
           plan_expires_at?: string | null
           referral_code?: string | null
           referred_by?: string | null
+          reset_point_at?: string | null
           risk_accepted_at?: string | null
           trial_ends_at?: string | null
         }
