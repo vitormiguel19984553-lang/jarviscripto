@@ -365,6 +365,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
     });
   };
 
+  /** Acrescenta moedas novas à seleção, sem passar do limite do plano. */
+  const addCoins = (ids: string[]) => {
+    setSelected((s) => {
+      const max = limitsFor(planRef.current).maxCoins;
+      const next = [...s];
+      for (const id of ids) {
+        if (next.length >= max) break;
+        if (!next.includes(id)) next.push(id);
+      }
+      if (next.length === s.length) return s;
+      void persistSettings({ selected_coins: next });
+      return next;
+    });
+  };
+
   const updateRisk = (next: Risk) => {
     setRisk(next);
     void persistSettings({
@@ -924,6 +939,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     logs,
     selected,
     toggleCoin,
+    addCoins,
+    suggestedCoins: suggestNewCoins(coins, selected, plan),
     running,
     setRunning,
     durationHours,
