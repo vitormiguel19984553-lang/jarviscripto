@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, HelpCircle } from "lucide-react";
 import type { TradeLog } from "@/lib/useJarvis";
 import { eur } from "@/lib/market";
+import { supabase } from "@/integrations/supabase/client";
+
 
 /** Decompõe o motivo guardado em pontos legíveis. */
 function explain(log: TradeLog): string[] {
