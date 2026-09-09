@@ -278,7 +278,14 @@ export function useJarvis(userId: string, coins: Coin[]) {
           ),
         });
       } else {
-        await supabase.from("bot_settings").insert({ user_id: userId });
+        // Conta nova: já começa com uma lista de moedas alargada (até ao limite
+        // do plano), para a IA ter sempre candidatos de compra e de venda.
+        const startPlan = await loadPlan(userId);
+        const startCoins = defaultSelection(coinsRef.current, startPlan);
+        await supabase
+          .from("bot_settings")
+          .insert({ user_id: userId, selected_coins: startCoins });
+        if (active) setSelected(startCoins);
       }
 
       // Posições simuladas realmente detidas (persistidas na Cloud).
