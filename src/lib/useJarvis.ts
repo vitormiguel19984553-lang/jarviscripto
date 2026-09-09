@@ -52,6 +52,7 @@ import {
   type TradeDirection,
 } from "@/lib/risk";
 import { resolveStrategy, type StrategyName } from "@/lib/strategies";
+import { defaultSelection, suggestNewCoins } from "@/lib/coinSelection";
 import { fetchSentiment, sentimentAdjust, type Sentiment } from "@/lib/sentiment";
 
 /** Limite de capital fictício na carteira de simulação (€). */
