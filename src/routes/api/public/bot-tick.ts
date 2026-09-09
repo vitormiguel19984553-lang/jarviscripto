@@ -611,9 +611,19 @@ export const Route = createFileRoute("/api/public/bot-tick")({
 
           if (realBlock || !candidates.length) {
             const onlySells = actionable.length > 0 && actionable.every((a) => a.position);
+            // Seleção esgotada: todas as moedas vigiadas já estão compradas, por
+            // isso o motor só pode gerar vendas e nunca novas entradas.
+            const allSelectedHeld = pool.length > 0 && pool.every((c) => heldByCoin.has(c.id));
+            const totalSelectableCoins = coins.length;
+            const allHeldReason =
+              `Todas as moedas selecionadas já estão compradas (${pool.length}/${pool.length}) — ` +
+              `adiciona mais moedas à tua lista para a IA poder abrir novas posições. ` +
+              `Há ${Math.max(0, totalSelectableCoins - pool.length)} moedas disponíveis no catálogo e o teu plano permite até ${limits.maxCoins}.`;
             const waitReason = s.real_mode
               ? (realBlock ??
-                (!canBuyReal
+                (allSelectedHeld
+                  ? allHeldReason
+                  : !canBuyReal
                   ? `Saldo real insuficiente: tens ${freeQuote.toFixed(2)} ${quote} livre e a Binance exige pelo menos 5 ${quote} por ordem.`
                   : direction === "venda"
                     ? "Modo SÓ VENDA: a IA não abre novas posições e ainda não há saídas a fazer."

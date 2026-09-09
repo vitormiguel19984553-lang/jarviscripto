@@ -52,6 +52,7 @@ import {
   type TradeDirection,
 } from "@/lib/risk";
 import { resolveStrategy, type StrategyName } from "@/lib/strategies";
+import { defaultSelection, suggestNewCoins } from "@/lib/coinSelection";
 import { fetchSentiment, sentimentAdjust, type Sentiment } from "@/lib/sentiment";
 
 /** Limite de capital fictício na carteira de simulação (€). */
@@ -277,7 +278,14 @@ export function useJarvis(userId: string, coins: Coin[]) {
           ),
         });
       } else {
-        await supabase.from("bot_settings").insert({ user_id: userId });
+        // Conta nova: já começa com uma lista de moedas alargada (até ao limite
+        // do plano), para a IA ter sempre candidatos de compra e de venda.
+        const startPlan = await loadPlan(userId);
+        const startCoins = defaultSelection(coinsRef.current, startPlan);
+        await supabase
+          .from("bot_settings")
+          .insert({ user_id: userId, selected_coins: startCoins });
+        if (active) setSelected(startCoins);
       }
 
       // Posições simuladas realmente detidas (persistidas na Cloud).
@@ -352,6 +360,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
         return s;
       }
       const next = s.includes(id) ? s.filter((x) => x !== id) : [...s, id];
+      void persistSettings({ selected_coins: next });
+      return next;
+    });
+  };
+
+  /** Acrescenta moedas novas à seleção, sem passar do limite do plano. */
+  const addCoins = (ids: string[]) => {
+    setSelected((s) => {
+      const max = limitsFor(planRef.current).maxCoins;
+      const next = [...s];
+      for (const id of ids) {
+        if (next.length >= max) break;
+        if (!next.includes(id)) next.push(id);
+      }
+      if (next.length === s.length) return s;
       void persistSettings({ selected_coins: next });
       return next;
     });
@@ -916,6 +939,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
     logs,
     selected,
     toggleCoin,
+    addCoins,
+    suggestedCoins: suggestNewCoins(coins, selected, plan),
     running,
     setRunning,
     durationHours,
