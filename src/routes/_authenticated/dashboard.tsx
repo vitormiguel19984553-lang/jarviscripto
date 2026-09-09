@@ -17,6 +17,7 @@ import { CalibrationPanel } from "@/components/CalibrationPanel";
 import { SecondOpinionFeed } from "@/components/SecondOpinionFeed";
 import { CoinCompare } from "@/components/CoinCompare";
 import { WalletPanel } from "@/components/WalletPanel";
+import { NewCoinsNotice } from "@/components/NewCoinsNotice";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -188,6 +189,13 @@ function Dashboard() {
       {tab === "mercado" && (
         <section className="mt-5">
           <h2 className="mb-3 text-sm tracking-widest text-primary">MERCADO E SINAIS DA IA</h2>
+          <NewCoinsNotice
+            userId={user.id}
+            suggested={engine.suggestedCoins}
+            selectedCount={engine.selected.length}
+            maxCoins={engine.limits.maxCoins}
+            onAdd={engine.addCoins}
+          />
           {market.isError && (
             <div className="hud-panel p-5">
               <p className="text-sm text-destructive">
