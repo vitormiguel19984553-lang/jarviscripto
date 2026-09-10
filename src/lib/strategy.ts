@@ -1,7 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 import { nextMinConfidence, nextWeight, sharpeRatio } from "@/lib/learning";
 
+/**
+ * Estado de aprendizagem da estratégia.
+ *
+ * A tabela `strategy_state` tem uma linha por (utilizador, moeda) e ainda uma
+ * linha global identificada pelo símbolo `*`. A linha global serve de
+ * referência quando uma moeda ainda tem histórico curto, para que uma moeda
+ * nova não herde nem confiança exagerada nem castigo de outra moeda.
+ */
+
+export const GLOBAL_SYMBOL = "*";
+
 export type StrategyState = {
+  symbol: string;
   min_confidence: number;
   trades: number;
   wins: number;
@@ -20,6 +32,7 @@ export type SymbolStat = {
 };
 
 export const defaultStrategy: StrategyState = {
+  symbol: GLOBAL_SYMBOL,
   min_confidence: 55,
   trades: 0,
   wins: 0,
@@ -29,26 +42,69 @@ export const defaultStrategy: StrategyState = {
   last_adjust_at: null,
 };
 
+export const emptyStrategyFor = (symbol: string): StrategyState => ({
+  ...defaultStrategy,
+  symbol,
+});
+
+const SELECT = "symbol,min_confidence,trades,wins,losses,total_pnl,sharpe,last_adjust_at";
+
+type Row = {
+  symbol: string;
+  min_confidence: number | string;
+  trades: number;
+  wins: number;
+  losses: number;
+  total_pnl: number | string;
+  sharpe: number | string;
+  last_adjust_at: string | null;
+};
+
+const norm = (r: Row): StrategyState => ({
+  symbol: r.symbol,
+  min_confidence: Number(r.min_confidence),
+  trades: r.trades,
+  wins: r.wins,
+  losses: r.losses,
+  total_pnl: Number(r.total_pnl),
+  sharpe: Number(r.sharpe),
+  last_adjust_at: r.last_adjust_at,
+});
+
+/** Linha global (média/referência do utilizador). */
 export async function loadStrategy(userId: string): Promise<StrategyState> {
   const { data, error } = await supabase
     .from("strategy_state")
-    .select("min_confidence,trades,wins,losses,total_pnl,sharpe,last_adjust_at")
+    .select(SELECT)
     .eq("user_id", userId)
+    .eq("symbol", GLOBAL_SYMBOL)
     .maybeSingle();
   if (error) throw error;
   if (!data) {
-    await supabase.from("strategy_state").insert({ user_id: userId });
+    await supabase
+      .from("strategy_state")
+      .insert({ user_id: userId, symbol: GLOBAL_SYMBOL })
+      .select("symbol")
+      .maybeSingle();
     return defaultStrategy;
   }
-  return {
-    min_confidence: Number(data.min_confidence),
-    trades: data.trades,
-    wins: data.wins,
-    losses: data.losses,
-    total_pnl: Number(data.total_pnl),
-    sharpe: Number(data.sharpe),
-    last_adjust_at: data.last_adjust_at,
-  };
+  return norm(data as Row);
+}
+
+/** Todas as linhas: global + uma por moeda. */
+export async function loadStrategyStates(
+  userId: string,
+): Promise<{ global: StrategyState; bySymbol: Map<string, StrategyState> }> {
+  const { data, error } = await supabase.from("strategy_state").select(SELECT).eq("user_id", userId);
+  if (error) throw error;
+  const rows = (data ?? []).map((r) => norm(r as Row));
+  const bySymbol = new Map<string, StrategyState>();
+  let global = defaultStrategy;
+  for (const r of rows) {
+    if (r.symbol === GLOBAL_SYMBOL) global = r;
+    else bySymbol.set(r.symbol, r);
+  }
+  return { global, bySymbol };
 }
 
 export async function loadSymbolStats(userId: string): Promise<SymbolStat[]> {
@@ -66,35 +122,52 @@ export async function loadSymbolStats(userId: string): Promise<SymbolStat[]> {
   }));
 }
 
+/** Estado seguinte de uma linha de aprendizagem, dado o resultado realizado. */
+export function advanceStrategy(
+  state: StrategyState,
+  args: { pnl: number; recentPnls: number[]; nowIso: string },
+): StrategyState {
+  const trades = state.trades + 1;
+  const wins = state.wins + (args.pnl > 0 ? 1 : 0);
+  const losses = state.losses + (args.pnl <= 0 ? 1 : 0);
+  const sharpe = sharpeRatio(args.recentPnls.slice(0, 60));
+  const minConfidence = nextMinConfidence(state.min_confidence, { trades, wins, sharpe });
+  return {
+    symbol: state.symbol,
+    min_confidence: minConfidence,
+    trades,
+    wins,
+    losses,
+    total_pnl: Number((state.total_pnl + args.pnl).toFixed(2)),
+    sharpe,
+    last_adjust_at:
+      minConfidence !== state.min_confidence ? args.nowIso : state.last_adjust_at,
+  };
+}
+
 /**
- * Registra o resultado de uma operação e ajusta os parâmetros da estratégia
- * (confiança mínima global + peso da moeda).
+ * Registra o resultado de uma operação: aprende na moeda em causa (linha
+ * própria), mantém a linha global como referência e ajusta o peso da moeda.
  */
 export async function recordOutcome(opts: {
   userId: string;
   symbol: string;
   pnl: number;
   recentPnls: number[];
+  symbolPnls?: number[];
   state: StrategyState;
+  symbolState?: StrategyState;
   stat: SymbolStat;
-}): Promise<{ state: StrategyState; stat: SymbolStat }> {
+}): Promise<{ state: StrategyState; symbolState: StrategyState; stat: SymbolStat }> {
   const { userId, symbol, pnl, recentPnls, state, stat } = opts;
-  const trades = state.trades + 1;
-  const wins = state.wins + (pnl > 0 ? 1 : 0);
-  const losses = state.losses + (pnl <= 0 ? 1 : 0);
-  const sharpe = sharpeRatio(recentPnls.slice(0, 60));
-  const minConfidence = nextMinConfidence(state.min_confidence, { trades, wins, sharpe });
   const nowIso = new Date().toISOString();
 
-  const next: StrategyState = {
-    min_confidence: minConfidence,
-    trades,
-    wins,
-    losses,
-    total_pnl: Number((state.total_pnl + pnl).toFixed(2)),
-    sharpe,
-    last_adjust_at: minConfidence !== state.min_confidence ? nowIso : state.last_adjust_at,
-  };
+  const next = advanceStrategy({ ...state, symbol: GLOBAL_SYMBOL }, { pnl, recentPnls, nowIso });
+  const nextSymbol = advanceStrategy(opts.symbolState ?? emptyStrategyFor(symbol), {
+    pnl,
+    recentPnls: opts.symbolPnls ?? [pnl],
+    nowIso,
+  });
 
   const nextStat: SymbolStat = {
     symbol,
@@ -107,7 +180,16 @@ export async function recordOutcome(opts: {
   await Promise.all([
     supabase
       .from("strategy_state")
-      .upsert({ user_id: userId, ...next, updated_at: nowIso }, { onConflict: "user_id" }),
+      .upsert(
+        { user_id: userId, ...next, updated_at: nowIso },
+        { onConflict: "user_id,symbol" },
+      ),
+    supabase
+      .from("strategy_state")
+      .upsert(
+        { user_id: userId, ...nextSymbol, symbol, updated_at: nowIso },
+        { onConflict: "user_id,symbol" },
+      ),
     supabase
       .from("strategy_symbol_stats")
       .upsert(
@@ -116,7 +198,7 @@ export async function recordOutcome(opts: {
       ),
   ]);
 
-  return { state: next, stat: nextStat };
+  return { state: next, symbolState: nextSymbol, stat: nextStat };
 }
 
 export const defaultStat = (symbol: string): SymbolStat => ({
