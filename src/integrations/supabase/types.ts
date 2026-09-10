@@ -898,6 +898,7 @@ export type Database = {
           losses: number
           min_confidence: number
           sharpe: number
+          symbol: string
           total_pnl: number
           trades: number
           updated_at: string
@@ -911,6 +912,7 @@ export type Database = {
           losses?: number
           min_confidence?: number
           sharpe?: number
+          symbol?: string
           total_pnl?: number
           trades?: number
           updated_at?: string
@@ -924,6 +926,7 @@ export type Database = {
           losses?: number
           min_confidence?: number
           sharpe?: number
+          symbol?: string
           total_pnl?: number
           trades?: number
           updated_at?: string
