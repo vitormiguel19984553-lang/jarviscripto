@@ -352,52 +352,112 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             }
           };
 
-          /** Auto-aprendizagem da estratégia (só com resultados realizados). */
+          /**
+           * Auto-aprendizagem da estratégia (só com resultados realizados).
+           *
+           * Aprende separadamente em cada moeda (linha própria em
+           * `strategy_state`) e mantém a linha global `*` como referência para
+           * moedas com histórico curto. Assim, uma série má numa moeda não
+           * aumenta a exigência de confiança em todas as outras.
+           */
           const recordLearning = async (symbol: string, pnl: number) => {
-            const [{ data: st }, { data: sy }, { data: recent }] = await Promise.all([
+            const [{ data: rows }, { data: sy }, { data: recent }, { data: recentSym }] =
+              await Promise.all([
+                supabaseAdmin
+                  .from("strategy_state")
+                  .select("symbol,min_confidence,trades,wins,losses,total_pnl,last_adjust_at")
+                  .eq("user_id", s.user_id)
+                  .in("symbol", [GLOBAL_SYMBOL, symbol]),
+                supabaseAdmin
+                  .from("strategy_symbol_stats")
+                  .select("trades,wins,total_pnl,weight")
+                  .eq("user_id", s.user_id)
+                  .eq("symbol", symbol)
+                  .maybeSingle(),
+                supabaseAdmin
+                  .from("trades")
+                  .select("pnl")
+                  .eq("user_id", s.user_id)
+                  .order("created_at", { ascending: false })
+                  .limit(60),
+                supabaseAdmin
+                  .from("trades")
+                  .select("pnl")
+                  .eq("user_id", s.user_id)
+                  .eq("symbol", symbol)
+                  .order("created_at", { ascending: false })
+                  .limit(60),
+              ]);
+
+            type Learn = {
+              min_confidence: number;
+              trades: number;
+              wins: number;
+              losses: number;
+              total_pnl: number;
+              last_adjust_at: string | null;
+            };
+            const rowFor = (sym: string): Learn | null => {
+              const r = (rows ?? []).find((x) => x.symbol === sym);
+              return r
+                ? {
+                    min_confidence: Number(r.min_confidence),
+                    trades: r.trades,
+                    wins: r.wins,
+                    losses: r.losses,
+                    total_pnl: Number(r.total_pnl),
+                    last_adjust_at: r.last_adjust_at,
+                  }
+                : null;
+            };
+
+            /** Linha seguinte para um qualquer nível de aprendizagem. */
+            const advance = (row: Learn | null, pnls: number[]) => {
+              const current = Number(row?.min_confidence ?? 55);
+              const trades = (row?.trades ?? 0) + 1;
+              const wins = (row?.wins ?? 0) + (pnl > 0 ? 1 : 0);
+              const sharpe = sharpeRatio(pnls);
+              const minConfidence = Math.min(
+                90,
+                nextMinConfidence(current, { trades, wins, sharpe }) +
+                  instantLearningPenalty(aggression, pnl),
+              );
+              return {
+                min_confidence: minConfidence,
+                trades,
+                wins,
+                losses: (row?.losses ?? 0) + (pnl <= 0 ? 1 : 0),
+                // O resultado guardado é sempre a soma dos PnL reais em euros
+                // desta linha — nunca percentagens nem valores herdados.
+                total_pnl: Number((Number(row?.total_pnl ?? 0) + pnl).toFixed(2)),
+                sharpe,
+                last_adjust_at: minConfidence !== current ? nowIso : (row?.last_adjust_at ?? null),
+                updated_at: nowIso,
+              };
+            };
+
+            const globalNext = advance(
+              rowFor(GLOBAL_SYMBOL),
+              (recent ?? []).map((t) => Number(t.pnl)),
+            );
+            const symbolNext = advance(
+              rowFor(symbol),
+              (recentSym ?? []).map((t) => Number(t.pnl)),
+            );
+
+            await Promise.all([
               supabaseAdmin
                 .from("strategy_state")
-                .select("min_confidence,trades,wins,losses,total_pnl,last_adjust_at")
-                .eq("user_id", s.user_id)
-                .maybeSingle(),
+                .upsert(
+                  { user_id: s.user_id, symbol: GLOBAL_SYMBOL, ...globalNext },
+                  { onConflict: "user_id,symbol" },
+                ),
               supabaseAdmin
-                .from("strategy_symbol_stats")
-                .select("trades,wins,total_pnl,weight")
-                .eq("user_id", s.user_id)
-                .eq("symbol", symbol)
-                .maybeSingle(),
-              supabaseAdmin
-                .from("trades")
-                .select("pnl")
-                .eq("user_id", s.user_id)
-                .order("created_at", { ascending: false })
-                .limit(60),
-            ]);
-            const sharpe = sharpeRatio((recent ?? []).map((t) => Number(t.pnl)));
-            const lTrades = (st?.trades ?? 0) + 1;
-            const lWins = (st?.wins ?? 0) + (pnl > 0 ? 1 : 0);
-            const current = Number(st?.min_confidence ?? 55);
-            const minConfidence = Math.min(
-              90,
-              nextMinConfidence(current, { trades: lTrades, wins: lWins, sharpe }) +
-                instantLearningPenalty(aggression, pnl),
-            );
-            await Promise.all([
-              supabaseAdmin.from("strategy_state").upsert(
-                {
-                  user_id: s.user_id,
-                  min_confidence: minConfidence,
-                  trades: lTrades,
-                  wins: lWins,
-                  losses: (st?.losses ?? 0) + (pnl <= 0 ? 1 : 0),
-                  total_pnl: Number((Number(st?.total_pnl ?? 0) + pnl).toFixed(2)),
-                  sharpe,
-                  last_adjust_at:
-                    minConfidence !== current ? nowIso : (st?.last_adjust_at ?? null),
-                  updated_at: nowIso,
-                },
-                { onConflict: "user_id" },
-              ),
+                .from("strategy_state")
+                .upsert(
+                  { user_id: s.user_id, symbol, ...symbolNext },
+                  { onConflict: "user_id,symbol" },
+                ),
               supabaseAdmin.from("strategy_symbol_stats").upsert(
                 {
                   user_id: s.user_id,

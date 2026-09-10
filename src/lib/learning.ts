@@ -54,6 +54,34 @@ export function withUserFloor(learned: number, userFloor: number): number {
   return Number(Math.max(learned, floor).toFixed(2));
 }
 
+/**
+ * Histórico mínimo para a IA confiar apenas na aprendizagem de uma moeda.
+ * Abaixo disto, mistura-se com a referência global do utilizador.
+ */
+export const MIN_SYMBOL_TRADES = 10;
+
+/**
+ * Confiança mínima aprendida para uma moeda: com histórico suficiente vale a
+ * aprendizagem da própria moeda; com pouco histórico mistura-se de forma
+ * proporcional com a linha global, para uma moeda nova não ser nem
+ * sobrevalorizada nem castigada por outra moeda.
+ */
+export function effectiveMinConfidence(
+  globalConfidence: number,
+  symbolState?: { min_confidence: number; trades: number } | null,
+): number {
+  const g = clamp(Number(globalConfidence) || 55, MIN_CONFIDENCE_FLOOR, MIN_CONFIDENCE_CEIL);
+  if (!symbolState || symbolState.trades <= 0) return Number(g.toFixed(2));
+  const own = clamp(
+    Number(symbolState.min_confidence) || g,
+    MIN_CONFIDENCE_FLOOR,
+    MIN_CONFIDENCE_CEIL,
+  );
+  if (symbolState.trades >= MIN_SYMBOL_TRADES) return Number(own.toFixed(2));
+  const w = symbolState.trades / MIN_SYMBOL_TRADES;
+  return Number((g * (1 - w) + own * w).toFixed(2));
+}
+
 /** Limite de confiança efetivo para uma moeda, dado o peso aprendido. */
 export function thresholdForSymbol(minConfidence: number, weight: number): number {
   const adjusted = minConfidence + (1 - weight) * 12;
