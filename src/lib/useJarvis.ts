@@ -11,13 +11,14 @@ import {
 import {
   defaultStat,
   defaultStrategy,
-  loadStrategy,
+  loadStrategyStates,
   loadSymbolStats,
   recordOutcome,
   type StrategyState,
   type SymbolStat,
 } from "@/lib/strategy";
 import {
+  effectiveMinConfidence,
   sizeForWeight,
   thresholdForSymbol,
   USER_CONFIDENCE_MAX,
@@ -116,6 +117,9 @@ export function useJarvis(userId: string, coins: Coin[]) {
   const alertsRef = useRef<AlertSettings>(defaultAlertSettings);
   const strategyRef = useRef<StrategyState>(defaultStrategy);
   const statsRef = useRef<Map<string, SymbolStat>>(new Map());
+  /** Aprendizagem por moeda (uma linha de estado por símbolo). */
+  const symbolStatesRef = useRef<Map<string, StrategyState>>(new Map());
+  const symbolPnlsRef = useRef<Map<string, number[]>>(new Map());
   const pnlHistoryRef = useRef<number[]>([]);
   const planRef = useRef<PlanTier>("normal");
   const freqRef = useRef(6);
@@ -168,11 +172,12 @@ export function useJarvis(userId: string, coins: Coin[]) {
         setDurationHours((h) => (allowed.includes(h) ? h : allowed[allowed.length - 1]));
       })
       .catch(() => undefined);
-    Promise.all([loadStrategy(userId), loadSymbolStats(userId)])
-      .then(([st, stats]) => {
+    Promise.all([loadStrategyStates(userId), loadSymbolStats(userId)])
+      .then(([states, stats]) => {
         if (!active) return;
-        strategyRef.current = st;
-        setStrategy(st);
+        strategyRef.current = states.global;
+        symbolStatesRef.current = states.bySymbol;
+        setStrategy(states.global);
         const map = new Map(stats.map((s) => [s.symbol, s]));
         statsRef.current = map;
         setSymbolStats(stats);
@@ -511,6 +516,8 @@ export function useJarvis(userId: string, coins: Coin[]) {
       /** Aprendizagem simétrica: compras e vendas alimentam o mesmo cérebro. */
       const learnFrom = async (symbol: string, pnl: number, patterns: Pattern[]) => {
         pnlHistoryRef.current = [pnl, ...pnlHistoryRef.current].slice(0, 200);
+        const symbolPnls = [pnl, ...(symbolPnlsRef.current.get(symbol) ?? [])].slice(0, 200);
+        symbolPnlsRef.current.set(symbol, symbolPnls);
         const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
         try {
           const res = await recordOutcome({
@@ -518,7 +525,9 @@ export function useJarvis(userId: string, coins: Coin[]) {
             symbol,
             pnl,
             recentPnls: pnlHistoryRef.current,
+            symbolPnls,
             state: strategyRef.current,
+            symbolState: symbolStatesRef.current.get(symbol),
             stat,
           });
           const extra = instantLearningPenalty(aggressionRef.current, pnl);
@@ -527,8 +536,13 @@ export function useJarvis(userId: string, coins: Coin[]) {
               ...res.state,
               min_confidence: Math.min(90, res.state.min_confidence + extra),
             };
+            res.symbolState = {
+              ...res.symbolState,
+              min_confidence: Math.min(90, res.symbolState.min_confidence + extra),
+            };
           }
           strategyRef.current = res.state;
+          symbolStatesRef.current.set(symbol, res.symbolState);
           statsRef.current.set(symbol, res.stat);
           setStrategy(res.state);
           setSymbolStats([...statsRef.current.values()]);
@@ -720,12 +734,14 @@ export function useJarvis(userId: string, coins: Coin[]) {
 
       const stat = statsRef.current.get(symbol) ?? defaultStat(symbol);
       // A IA só executa se o sinal superar o limite aprendido para esta moeda,
-      // nunca abaixo do piso definido pelo utilizador.
+      // nunca abaixo do piso definido pelo utilizador. Com pouco histórico na
+      // moeda, mistura-se com a linha global (igual ao motor no servidor).
+      const learnedConfidence = effectiveMinConfidence(
+        strategyRef.current.min_confidence,
+        symbolStatesRef.current.get(symbol) ?? null,
+      );
       const threshold = thresholdWithAggression(
-        thresholdForSymbol(
-          withUserFloor(strategyRef.current.min_confidence, minConfRef.current),
-          stat.weight,
-        ),
+        thresholdForSymbol(withUserFloor(learnedConfidence, minConfRef.current), stat.weight),
         aggressionRef.current,
       );
       // Estratégia nomeada + regime de mercado desta moeda.
