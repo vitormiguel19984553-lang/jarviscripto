@@ -27,6 +27,7 @@ import {
   directionAllows,
 } from "@/lib/risk";
 import {
+  effectiveMinConfidence,
   nextMinConfidence,
   nextWeight,
   sharpeRatio,
@@ -34,6 +35,7 @@ import {
   thresholdForSymbol,
   withUserFloor,
 } from "@/lib/learning";
+import { GLOBAL_SYMBOL } from "@/lib/strategy";
 import type { Opinion } from "@/lib/second-opinion.server";
 import {
   amountWithAggression,
@@ -720,12 +722,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const symbol = coin.symbol.toUpperCase();
 
           // ── 3. Confiança: limite aprendido + piso escolhido pelo utilizador ─
-          const [{ data: strat }, { data: stat }] = await Promise.all([
+          const [{ data: stratRows }, { data: stat }] = await Promise.all([
             supabaseAdmin
               .from("strategy_state")
-              .select("min_confidence")
+              .select("symbol,min_confidence,trades")
               .eq("user_id", s.user_id)
-              .maybeSingle(),
+              .in("symbol", [GLOBAL_SYMBOL, symbol]),
             supabaseAdmin
               .from("strategy_symbol_stats")
               .select("weight")
@@ -733,7 +735,21 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               .eq("symbol", symbol)
               .maybeSingle(),
           ]);
-          const learnedConfidence = Number(strat?.min_confidence ?? 55);
+          const stratList = (stratRows ?? []) as {
+            symbol: string;
+            min_confidence: number | string;
+            trades: number;
+          }[];
+          const globalRow = stratList.find((r) => r.symbol === GLOBAL_SYMBOL);
+          const symbolRow = stratList.find((r) => r.symbol === symbol);
+          // A confiança mínima é a aprendida nesta moeda; com pouco histórico
+          // mistura-se com a linha global do utilizador.
+          const learnedConfidence = effectiveMinConfidence(
+            Number(globalRow?.min_confidence ?? 55),
+            symbolRow
+              ? { min_confidence: Number(symbolRow.min_confidence), trades: Number(symbolRow.trades) }
+              : null,
+          );
           const userFloor = Number((s as { user_min_confidence?: number }).user_min_confidence ?? 55);
           const weight = Number(stat?.weight ?? 1);
           const threshold = thresholdWithAggression(
