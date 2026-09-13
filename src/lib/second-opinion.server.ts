@@ -99,13 +99,28 @@ function parse(text: string): { verdict: Verdict; rationale: string } {
 /** Combina os pareceres: divergência entre modelos é sempre "cautela" no mínimo. */
 export function mergeOpinions(opinions: ModelOpinion[]): Opinion {
   const answered = opinions.filter((o) => o.verdict !== "sem_revisao");
+  const failureSummary =
+    opinions
+      .filter((o) => o.failure)
+      .map(
+        (o) =>
+          `${o.label}: ${FAILURE_LABEL[o.failure!]}` +
+          (o.latencyMs ? ` após ${Math.round(o.latencyMs)}ms` : "") +
+          (o.failureDetail ? ` — ${o.failureDetail}` : ""),
+      )
+      .join(" | ")
+      .slice(0, 600) || undefined;
+
   if (!answered.length) {
     return {
       model: opinions.map((o) => o.label).join(" + ") || "sem-revisao",
       verdict: "sem_revisao",
-      rationale: "Nenhuma das segundas IAs respondeu dentro do tempo limite.",
+      rationale: failureSummary
+        ? `Nenhuma segunda IA respondeu — ${failureSummary}`
+        : "Nenhuma das segundas IAs respondeu.",
       opinions,
       disagreement: false,
+      failureSummary,
     };
   }
 
