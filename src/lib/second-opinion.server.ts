@@ -3,11 +3,26 @@ import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
 export type Verdict = "concorda" | "discorda" | "cautela" | "sem_revisao";
 
+/** Motivo técnico da falha de um revisor — diagnosticável sem adivinhar. */
+export type FailureKind =
+  | "timeout"
+  | "rate_limit"
+  | "sem_creditos"
+  | "bloqueado"
+  | "pedido_invalido"
+  | "erro_gateway"
+  | "erro_desconhecido";
+
 export type ModelOpinion = {
   model: string;
   label: string;
   verdict: Verdict;
   rationale: string;
+  /** Presente apenas quando o revisor não respondeu. */
+  failure?: FailureKind;
+  /** Mensagem crua (truncada) do gateway, para inspeção. */
+  failureDetail?: string;
+  latencyMs?: number;
 };
 
 export type Opinion = {
