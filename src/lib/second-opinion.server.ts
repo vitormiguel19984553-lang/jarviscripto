@@ -142,11 +142,17 @@ export function mergeOpinions(opinions: ModelOpinion[]): Opinion {
   return {
     model: answered.map((o) => o.label).join(" + "),
     verdict,
-    rationale: disagreement ? `Divergência entre modelos → cautela. ${rationale}` : rationale,
+    rationale:
+      (disagreement ? `Divergência entre modelos → cautela. ${rationale}` : rationale) +
+      (failureSummary ? ` · falhas: ${failureSummary}` : ""),
     opinions,
     disagreement,
+    failureSummary,
   };
 }
+
+/** Tempo limite por revisor (2 modelos em paralelo, gateway sob carga). */
+export const SECOND_OPINION_TIMEOUT_MS = 18_000;
 
 /**
  * Segunda opinião entre IAs: vários modelos diferentes revêem, em paralelo, o
