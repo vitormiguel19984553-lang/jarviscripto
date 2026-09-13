@@ -3,11 +3,26 @@ import { createLovableAiGatewayProvider } from "@/lib/ai-gateway.server";
 
 export type Verdict = "concorda" | "discorda" | "cautela" | "sem_revisao";
 
+/** Motivo técnico da falha de um revisor — diagnosticável sem adivinhar. */
+export type FailureKind =
+  | "timeout"
+  | "rate_limit"
+  | "sem_creditos"
+  | "bloqueado"
+  | "pedido_invalido"
+  | "erro_gateway"
+  | "erro_desconhecido";
+
 export type ModelOpinion = {
   model: string;
   label: string;
   verdict: Verdict;
   rationale: string;
+  /** Presente apenas quando o revisor não respondeu. */
+  failure?: FailureKind;
+  /** Mensagem crua (truncada) do gateway, para inspeção. */
+  failureDetail?: string;
+  latencyMs?: number;
 };
 
 export type Opinion = {
@@ -18,7 +33,43 @@ export type Opinion = {
   opinions?: ModelOpinion[];
   /** Verdadeiro quando os revisores não chegaram ao mesmo veredicto. */
   disagreement?: boolean;
+  /** Resumo das falhas por modelo (ex.: "Gemini 3.1 Pro: timeout"). */
+  failureSummary?: string;
 };
+
+const FAILURE_LABEL: Record<FailureKind, string> = {
+  timeout: "excedeu o tempo limite",
+  rate_limit: "limite de pedidos do gateway (429)",
+  sem_creditos: "sem créditos de IA (402)",
+  bloqueado: "bloqueado por política do workspace (403)",
+  pedido_invalido: "pedido inválido (400)",
+  erro_gateway: "erro do gateway (5xx)",
+  erro_desconhecido: "erro desconhecido",
+};
+
+/** Traduz o erro do gateway num motivo concreto e inspecionável. */
+export function classifyFailure(error: unknown, aborted: boolean): FailureKind {
+  if (aborted) return "timeout";
+  const err = error as { statusCode?: number; status?: number; name?: string; message?: string };
+  if (err?.name === "AbortError" || err?.name === "TimeoutError") return "timeout";
+  const status = err?.statusCode ?? err?.status;
+  if (status === 429) return "rate_limit";
+  if (status === 402) return "sem_creditos";
+  if (status === 403 || status === 401) return "bloqueado";
+  if (status === 400) return "pedido_invalido";
+  if (typeof status === "number" && status >= 500) return "erro_gateway";
+  const msg = String(err?.message ?? error ?? "").toLowerCase();
+  if (msg.includes("abort") || msg.includes("timeout")) return "timeout";
+  if (msg.includes("rate limit") || msg.includes("429")) return "rate_limit";
+  if (msg.includes("402")) return "sem_creditos";
+  if (msg.includes("403") || msg.includes("401")) return "bloqueado";
+  return "erro_desconhecido";
+}
+
+function failureDetail(error: unknown): string {
+  const err = error as { message?: string; responseBody?: string };
+  return String(err?.responseBody ?? err?.message ?? error ?? "").slice(0, 300);
+}
 
 /**
  * Painel de revisores: modelos distintos do catálogo do Lovable AI Gateway,
@@ -48,13 +99,28 @@ function parse(text: string): { verdict: Verdict; rationale: string } {
 /** Combina os pareceres: divergência entre modelos é sempre "cautela" no mínimo. */
 export function mergeOpinions(opinions: ModelOpinion[]): Opinion {
   const answered = opinions.filter((o) => o.verdict !== "sem_revisao");
+  const failureSummary =
+    opinions
+      .filter((o) => o.failure)
+      .map(
+        (o) =>
+          `${o.label}: ${FAILURE_LABEL[o.failure!]}` +
+          (o.latencyMs ? ` após ${Math.round(o.latencyMs)}ms` : "") +
+          (o.failureDetail ? ` — ${o.failureDetail}` : ""),
+      )
+      .join(" | ")
+      .slice(0, 600) || undefined;
+
   if (!answered.length) {
     return {
       model: opinions.map((o) => o.label).join(" + ") || "sem-revisao",
       verdict: "sem_revisao",
-      rationale: "Nenhuma das segundas IAs respondeu dentro do tempo limite.",
+      rationale: failureSummary
+        ? `Nenhuma segunda IA respondeu — ${failureSummary}`
+        : "Nenhuma das segundas IAs respondeu.",
       opinions,
       disagreement: false,
+      failureSummary,
     };
   }
 
@@ -76,11 +142,17 @@ export function mergeOpinions(opinions: ModelOpinion[]): Opinion {
   return {
     model: answered.map((o) => o.label).join(" + "),
     verdict,
-    rationale: disagreement ? `Divergência entre modelos → cautela. ${rationale}` : rationale,
+    rationale:
+      (disagreement ? `Divergência entre modelos → cautela. ${rationale}` : rationale) +
+      (failureSummary ? ` · falhas: ${failureSummary}` : ""),
     opinions,
     disagreement,
+    failureSummary,
   };
 }
+
+/** Tempo limite por revisor (2 modelos em paralelo, gateway sob carga). */
+export const SECOND_OPINION_TIMEOUT_MS = 18_000;
 
 /**
  * Segunda opinião entre IAs: vários modelos diferentes revêem, em paralelo, o
@@ -106,22 +178,38 @@ Memória da IA sobre este padrão: ${input.memoryNote || "sem histórico relevan
   const results = await Promise.all(
     REVIEWERS.map(async ({ model, label }): Promise<ModelOpinion> => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? 9000);
+      let aborted = false;
+      const started = Date.now();
+      const timer = setTimeout(() => {
+        aborted = true;
+        controller.abort();
+      }, input.timeoutMs ?? SECOND_OPINION_TIMEOUT_MS);
       try {
         const { text } = await generateText({
           model: gateway(model),
           system: SYSTEM,
           abortSignal: controller.signal,
           prompt,
+          maxRetries: 1,
         });
         const parsed = parse(text);
-        return { model, label, ...parsed };
-      } catch {
+        return { model, label, ...parsed, latencyMs: Date.now() - started };
+      } catch (error) {
+        const failure = classifyFailure(error, aborted);
+        const detail = failureDetail(error);
+        const latencyMs = Date.now() - started;
+        // Log server-side para inspeção nos logs da função, além do registo em ia_pareceres.
+        console.warn(
+          `[2ª IA] ${label} (${model}) falhou: ${failure} após ${latencyMs}ms — ${detail}`,
+        );
         return {
           model,
           label,
           verdict: "sem_revisao",
-          rationale: "Não respondeu dentro do tempo limite.",
+          rationale: `Sem resposta: ${FAILURE_LABEL[failure]}.`,
+          failure,
+          failureDetail: detail,
+          latencyMs,
         };
       } finally {
         clearTimeout(timer);
