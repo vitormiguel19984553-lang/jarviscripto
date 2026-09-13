@@ -33,7 +33,43 @@ export type Opinion = {
   opinions?: ModelOpinion[];
   /** Verdadeiro quando os revisores não chegaram ao mesmo veredicto. */
   disagreement?: boolean;
+  /** Resumo das falhas por modelo (ex.: "Gemini 3.1 Pro: timeout"). */
+  failureSummary?: string;
 };
+
+const FAILURE_LABEL: Record<FailureKind, string> = {
+  timeout: "excedeu o tempo limite",
+  rate_limit: "limite de pedidos do gateway (429)",
+  sem_creditos: "sem créditos de IA (402)",
+  bloqueado: "bloqueado por política do workspace (403)",
+  pedido_invalido: "pedido inválido (400)",
+  erro_gateway: "erro do gateway (5xx)",
+  erro_desconhecido: "erro desconhecido",
+};
+
+/** Traduz o erro do gateway num motivo concreto e inspecionável. */
+export function classifyFailure(error: unknown, aborted: boolean): FailureKind {
+  if (aborted) return "timeout";
+  const err = error as { statusCode?: number; status?: number; name?: string; message?: string };
+  if (err?.name === "AbortError" || err?.name === "TimeoutError") return "timeout";
+  const status = err?.statusCode ?? err?.status;
+  if (status === 429) return "rate_limit";
+  if (status === 402) return "sem_creditos";
+  if (status === 403 || status === 401) return "bloqueado";
+  if (status === 400) return "pedido_invalido";
+  if (typeof status === "number" && status >= 500) return "erro_gateway";
+  const msg = String(err?.message ?? error ?? "").toLowerCase();
+  if (msg.includes("abort") || msg.includes("timeout")) return "timeout";
+  if (msg.includes("rate limit") || msg.includes("429")) return "rate_limit";
+  if (msg.includes("402")) return "sem_creditos";
+  if (msg.includes("403") || msg.includes("401")) return "bloqueado";
+  return "erro_desconhecido";
+}
+
+function failureDetail(error: unknown): string {
+  const err = error as { message?: string; responseBody?: string };
+  return String(err?.responseBody ?? err?.message ?? error ?? "").slice(0, 300);
+}
 
 /**
  * Painel de revisores: modelos distintos do catálogo do Lovable AI Gateway,
