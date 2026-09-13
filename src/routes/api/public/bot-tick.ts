@@ -804,7 +804,18 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             rationale: "Segunda opinião disponível nos planos Pro Max e Enterprise.",
           };
           const aiKey = process.env.LOVABLE_API_KEY;
-          if (limits.secondOpinion && aiKey) {
+          // Com 40 moedas e cooldown curto, a revisão cruzada só corre onde importa:
+          // sinais perto do limiar de confiança ou ordens acima do dobro do mínimo.
+          const marginOverThreshold = confidence - threshold;
+          const needsReview = marginOverThreshold <= 15 || amount >= minTrade * 2;
+          if (limits.secondOpinion && aiKey && !needsReview) {
+            opinion = {
+              model: "sem-revisao",
+              verdict: "sem_revisao",
+              rationale: `Revisão cruzada dispensada — confiança ${confidence}% está ${marginOverThreshold} pts acima do limiar e ordem pequena (${amount}).`,
+            };
+          }
+          if (limits.secondOpinion && aiKey && needsReview) {
             const { secondOpinion, applyVerdict } = await import("@/lib/second-opinion.server");
             opinion = await secondOpinion({
               apiKey: aiKey,
@@ -814,6 +825,19 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               reason: signal.reason,
               memoryNote,
             });
+            if (opinion.verdict === "sem_revisao" && opinion.failureSummary) {
+              // Diagnóstico persistido: motivo real da falha por modelo.
+              await supabaseAdmin.from("ia_pareceres").insert({
+                user_id: s.user_id,
+                symbol,
+                model: opinion.model,
+                verdict: "sem_revisao",
+                rationale: `Revisão cruzada falhou — ${opinion.failureSummary}`,
+                opinions: opinion.opinions ?? [],
+                confidence_before: signal.confidence,
+                confidence_after: confidence,
+              });
+            }
             const effect = applyVerdict(opinion.verdict, amount, confidence);
             if (effect.requiredConfidence > 0 && confidence < effect.requiredConfidence) {
               await supabaseAdmin.from("ia_pareceres").insert({
