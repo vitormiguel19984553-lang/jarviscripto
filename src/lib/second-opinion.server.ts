@@ -178,22 +178,38 @@ Memória da IA sobre este padrão: ${input.memoryNote || "sem histórico relevan
   const results = await Promise.all(
     REVIEWERS.map(async ({ model, label }): Promise<ModelOpinion> => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? 9000);
+      let aborted = false;
+      const started = Date.now();
+      const timer = setTimeout(() => {
+        aborted = true;
+        controller.abort();
+      }, input.timeoutMs ?? SECOND_OPINION_TIMEOUT_MS);
       try {
         const { text } = await generateText({
           model: gateway(model),
           system: SYSTEM,
           abortSignal: controller.signal,
           prompt,
+          maxRetries: 1,
         });
         const parsed = parse(text);
-        return { model, label, ...parsed };
-      } catch {
+        return { model, label, ...parsed, latencyMs: Date.now() - started };
+      } catch (error) {
+        const failure = classifyFailure(error, aborted);
+        const detail = failureDetail(error);
+        const latencyMs = Date.now() - started;
+        // Log server-side para inspeção nos logs da função, além do registo em ia_pareceres.
+        console.warn(
+          `[2ª IA] ${label} (${model}) falhou: ${failure} após ${latencyMs}ms — ${detail}`,
+        );
         return {
           model,
           label,
           verdict: "sem_revisao",
-          rationale: "Não respondeu dentro do tempo limite.",
+          rationale: `Sem resposta: ${FAILURE_LABEL[failure]}.`,
+          failure,
+          failureDetail: detail,
+          latencyMs,
         };
       } finally {
         clearTimeout(timer);
