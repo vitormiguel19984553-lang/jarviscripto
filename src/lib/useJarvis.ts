@@ -796,6 +796,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
             pnl: 0,
             confidence,
             reason: `${position ? "Saída" : "Entrada"} evitada — ${memoryNote}.`,
+            kind: "note",
           });
         }
         return;
