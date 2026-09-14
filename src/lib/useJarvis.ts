@@ -832,6 +832,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           pnl: 0,
           confidence,
           reason: `Entrada evitada — limite de diversificação de ${capRef.current}% do capital atingido em ${symbol}.`,
+          kind: "note",
         });
         return;
       }
