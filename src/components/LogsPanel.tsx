@@ -97,6 +97,7 @@ const RANGES: { key: RangeKey; label: string }[] = [
 export function LogsPanel({ logs }: { logs: TradeLog[] }) {
   const [range, setRange] = useState<RangeKey>("7d");
   const [resetPoint, setResetPoint] = useState<Date | null>(null);
+  const [showNotes, setShowNotes] = useState(false);
 
   useEffect(() => {
     let alive = true;
