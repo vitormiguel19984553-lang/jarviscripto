@@ -177,6 +177,16 @@ export function LogsPanel({ logs }: { logs: TradeLog[] }) {
             </button>
           );
         })}
+        <button
+          onClick={() => setShowNotes((v) => !v)}
+          className={`rounded-md border px-2 py-1 font-display text-[10px] tracking-widest transition-all active:scale-95 ${
+            showNotes
+              ? "border-primary bg-primary/20 text-primary"
+              : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/40"
+          }`}
+        >
+          ANÁLISES SEM ORDEM ({notes.length})
+        </button>
       </div>
 
       {hidden > 0 && (
