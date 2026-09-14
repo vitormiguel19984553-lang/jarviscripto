@@ -73,19 +73,52 @@ export const COIN_META: CoinMeta[] = [
 
 export const MARKET_IDS = COIN_META.map((c) => c.id);
 
-async function fromCoinGecko(apiKey: string): Promise<Coin[]> {
+/** Últimos motivos de falha por fonte — expostos pelo /api/markets para diagnóstico. */
+export const lastSourceErrors: Record<string, string> = {};
+
+function note(source: string, err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  lastSourceErrors[source] = `${msg} @ ${new Date().toISOString()}`;
+  console.error(`[markets] ${source} falhou:`, msg);
+}
+
+async function fromCoinGecko(apiKey?: string): Promise<Coin[]> {
+  // 40 ids cabem num único pedido; sem chave usa-se o tier público (rate limit
+  // mais baixo, mas a cache do endpoint mantém a frequência baixa).
   const url =
     "https://api.coingecko.com/api/v3/coins/markets?vs_currency=eur&ids=" +
     MARKET_IDS.join(",") +
     "&sparkline=true&price_change_percentage=24h";
   const res = await fetch(url, {
-    headers: { accept: "application/json", "x-cg-demo-api-key": apiKey },
+    headers: {
+      accept: "application/json",
+      ...(apiKey ? { "x-cg-demo-api-key": apiKey } : {}),
+    },
   });
-  if (!res.ok) throw new Error(`coingecko ${res.status}`);
+  if (!res.ok) {
+    const body = (await res.text().catch(() => "")).slice(0, 200);
+    throw new Error(`coingecko ${res.status}${body ? ` ${body}` : ""}`);
+  }
   const data = (await res.json()) as Coin[];
   if (!Array.isArray(data) || !data.length) throw new Error("coingecko empty");
   return data;
 }
+
+/**
+ * Hosts da Binance por ordem de preferência. O host principal devolve 403/451 a
+ * partir de vários datacenters, por isso qualquer pedido tenta a cadeia toda e
+ * fixa o primeiro host que responder (evita 40x tentativas repetidas).
+ */
+const BINANCE_HOSTS = [
+  "https://data-api.binance.vision",
+  "https://api.binance.com",
+  "https://api1.binance.com",
+  "https://api2.binance.com",
+  "https://api3.binance.com",
+  "https://api-gcp.binance.com",
+];
+
+let binanceHost: string | null = null;
 
 async function json<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: "application/json" } });
@@ -93,10 +126,27 @@ async function json<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Pedido à Binance com failover de host; memoriza o host que funciona. */
+async function binanceJson<T>(path: string): Promise<T> {
+  const hosts = binanceHost ? [binanceHost, ...BINANCE_HOSTS.filter((h) => h !== binanceHost)] : BINANCE_HOSTS;
+  let lastErr: unknown = null;
+  for (const host of hosts) {
+    try {
+      const out = await json<T>(`${host}${path}`);
+      binanceHost = host;
+      return out;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  binanceHost = null;
+  throw lastErr instanceof Error ? lastErr : new Error("binance indisponível");
+}
+
 /** Klines 1h das últimas 168 horas → série de fechos (equivalente ao sparkline 7d). */
 async function binanceSeries(symbol: string) {
-  const rows = await json<unknown[][]>(
-    `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=168`,
+  const rows = await binanceJson<unknown[][]>(
+    `/api/v3/klines?symbol=${symbol}&interval=1h&limit=168`,
   );
   return rows.map((r) => Number(r[4]));
 }
