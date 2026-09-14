@@ -6,6 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 
 /** Decompõe o motivo guardado em pontos legíveis. */
+function isNote(log: TradeLog) {
+  return log.kind === "note" || log.amount <= 0;
+}
+
 function explain(log: TradeLog): string[] {
   const parts = log.reason
     .split(/[;·]/)
@@ -14,31 +18,43 @@ function explain(log: TradeLog): string[] {
   return [
     `A IA registou confiança de ${log.confidence}% neste sinal.`,
     ...parts,
-    log.amount > 0
-      ? `Ordem simulada de ${eur(log.amount)} com resultado ${log.pnl >= 0 ? "+" : ""}${eur(log.pnl)}.`
-      : "Nenhuma ordem foi executada — a IA evitou a entrada.",
+    isNote(log)
+      ? "Nenhuma ordem foi executada — esta linha é apenas a avaliação da IA."
+      : `Ordem simulada de ${eur(log.amount)} com resultado ${log.pnl >= 0 ? "+" : ""}${eur(log.pnl)}.`,
   ];
 }
 
 function LogRow({ log }: { log: TradeLog }) {
   const [open, setOpen] = useState(false);
+  const note = isNote(log);
   return (
     <article
-      className={`anim-rise rounded-md border border-border bg-secondary/40 p-3 text-sm transition-colors hover:border-primary/40 ${
-        log.pnl > 0 ? "anim-flash-success" : log.pnl < 0 ? "anim-flash-error" : ""
+      className={`anim-rise rounded-md border p-3 text-sm transition-colors hover:border-primary/40 ${
+        note ? "border-dashed border-border/70 bg-secondary/20" : "border-border bg-secondary/40"
+      } ${!note && log.pnl > 0 ? "anim-flash-success" : ""} ${
+        !note && log.pnl < 0 ? "anim-flash-error" : ""
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="font-display text-xs tracking-widest">
-          {log.action} · {log.symbol}
+        <span
+          className={`font-display text-xs tracking-widest ${note ? "text-muted-foreground" : ""}`}
+        >
+          {note ? "ANÁLISE" : log.action} · {log.symbol}
         </span>
-        <span className={`font-semibold ${log.pnl >= 0 ? "text-success" : "text-destructive"}`}>
-          {log.pnl >= 0 ? "+" : ""}
-          {eur(log.pnl)}
-        </span>
+        {note ? (
+          <span className="rounded border border-border px-1.5 py-0.5 font-display text-[10px] tracking-widest text-muted-foreground">
+            SEM ORDEM
+          </span>
+        ) : (
+          <span className={`font-semibold ${log.pnl >= 0 ? "text-success" : "text-destructive"}`}>
+            {log.pnl >= 0 ? "+" : ""}
+            {eur(log.pnl)}
+          </span>
+        )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        {log.time.toLocaleString("pt-PT")} · {eur(log.amount)} · confiança {log.confidence}%
+        {log.time.toLocaleString("pt-PT")}
+        {note ? "" : ` · ${eur(log.amount)}`} · confiança {log.confidence}%
       </p>
 
       <button
