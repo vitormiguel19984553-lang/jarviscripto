@@ -68,6 +68,12 @@ export type TradeLog = {
   pnl: number;
   confidence: number;
   reason: string;
+  /**
+   * "trade" = ordem realmente registada na base de dados.
+   * "note" = decisão que a IA avaliou e não executou (nunca é uma operação).
+   * As notas são locais, deduplicadas por moeda e não contam nas estatísticas.
+   */
+  kind?: "trade" | "note";
 };
 
 export type Risk = {
@@ -496,11 +502,16 @@ export function useJarvis(userId: string, coins: Coin[]) {
       if (!pool.length) return;
       const r = riskRef.current;
 
-      const logLine = (line: Omit<TradeLog, "id" | "time"> & { id?: string; time?: Date }) =>
+      const logLine = (line: Omit<TradeLog, "id" | "time"> & { id?: string; time?: Date }) => {
+        const kind: "trade" | "note" = line.kind ?? "trade";
+        // Uma nota por moeda+direção: cada nova avaliação substitui a anterior
+        // em vez de acumular linhas repetidas a cada volta do motor.
+        const id =
+          line.id ?? (kind === "note" ? `note-${line.symbol}-${line.action}` : `x-${Date.now()}`);
         setLogs((l) =>
           [
             {
-              id: line.id ?? `x-${Date.now()}`,
+              id,
               time: line.time ?? new Date(),
               symbol: line.symbol,
               action: line.action,
@@ -508,10 +519,12 @@ export function useJarvis(userId: string, coins: Coin[]) {
               pnl: line.pnl,
               confidence: line.confidence,
               reason: line.reason,
+              kind,
             },
-            ...l,
+            ...l.filter((prev) => prev.id !== id),
           ].slice(0, 100),
         );
+      };
 
       /** Aprendizagem simétrica: compras e vendas alimentam o mesmo cérebro. */
       const learnFrom = async (symbol: string, pnl: number, patterns: Pattern[]) => {
@@ -783,6 +796,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
             pnl: 0,
             confidence,
             reason: `${position ? "Saída" : "Entrada"} evitada — ${memoryNote}.`,
+            kind: "note",
           });
         }
         return;
@@ -818,6 +832,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           pnl: 0,
           confidence,
           reason: `Entrada evitada — limite de diversificação de ${capRef.current}% do capital atingido em ${symbol}.`,
+          kind: "note",
         });
         return;
       }
@@ -830,6 +845,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           pnl: 0,
           confidence,
           reason: `Entrada evitada — saldo de simulação disponível insuficiente (${availRef.current.toFixed(2)}€).`,
+          kind: "note",
         });
         return;
       }
