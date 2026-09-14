@@ -845,6 +845,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           pnl: 0,
           confidence,
           reason: `Entrada evitada — saldo de simulação disponível insuficiente (${availRef.current.toFixed(2)}€).`,
+          kind: "note",
         });
         return;
       }
