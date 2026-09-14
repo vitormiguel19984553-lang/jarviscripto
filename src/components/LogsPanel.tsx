@@ -122,11 +122,13 @@ export function LogsPanel({ logs }: { logs: TradeLog[] }) {
     return new Date(Date.now() - days * 86_400_000);
   })();
 
-  const visible = since ? logs.filter((l) => l.time >= since) : logs;
-  const real = visible.filter((l) => l.amount > 0);
+  const inRange = since ? logs.filter((l) => l.time >= since) : logs;
+  const real = inRange.filter((l) => !isNote(l));
+  const notes = inRange.filter(isNote);
+  const visible = showNotes ? inRange : real;
   const wins = real.filter((l) => l.pnl > 0).length;
-  const total = visible.reduce((a, l) => a + l.pnl, 0);
-  const hidden = logs.length - visible.length;
+  const total = real.reduce((a, l) => a + l.pnl, 0);
+  const hidden = logs.length - inRange.length;
 
   return (
     <section className="hud-panel p-5">
