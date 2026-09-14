@@ -68,6 +68,12 @@ export type TradeLog = {
   pnl: number;
   confidence: number;
   reason: string;
+  /**
+   * "trade" = ordem realmente registada na base de dados.
+   * "note" = decisão que a IA avaliou e não executou (nunca é uma operação).
+   * As notas são locais, deduplicadas por moeda e não contam nas estatísticas.
+   */
+  kind?: "trade" | "note";
 };
 
 export type Risk = {
