@@ -262,11 +262,10 @@ export async function usdtToEurRate(): Promise<number> {
 async function fromBinance(): Promise<Coin[]> {
   const usdtToEur = await usdtToEurRate();
 
-
   const symbols = JSON.stringify(COIN_META.map((c) => c.binance));
-  const tickers = await json<
+  const tickers = await binanceJson<
     { symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string }[]
-  >(`https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbols)}`);
+  >(`/api/v3/ticker/24hr?symbols=${encodeURIComponent(symbols)}`);
   const bySymbol = new Map(tickers.map((t) => [t.symbol, t]));
 
   const series = await Promise.all(
@@ -290,23 +289,29 @@ async function fromBinance(): Promise<Coin[]> {
   }).filter((c) => c.current_price > 0);
 }
 
-/** Chamada directa à fonte (só para uso no servidor). */
+/**
+ * Chamada directa à fonte (só para uso no servidor).
+ *
+ * Ordem: CoinGecko com chave → CoinGecko sem chave (distingue chave
+ * inválida/limitada de indisponibilidade real) → Binance com failover de host.
+ */
 export async function fetchMarketsFromSource(): Promise<Coin[]> {
   const key = process.env.COINGECKO_API_KEY;
-  if (key) {
+  const attempts: [string, () => Promise<Coin[]>][] = [];
+  if (key) attempts.push(["coingecko-key", () => fromCoinGecko(key)]);
+  attempts.push(["coingecko-public", () => fromCoinGecko()]);
+  attempts.push(["binance", () => fromBinance()]);
+
+  let lastErr: unknown = null;
+  for (const [name, fn] of attempts) {
     try {
-      return await fromCoinGecko(key);
+      const out = await fn();
+      delete lastSourceErrors[name];
+      return out;
     } catch (err) {
-      // Motivo real registado no servidor; só depois se tenta a Binance.
-      console.error("[markets] CoinGecko falhou:", err instanceof Error ? err.message : err);
+      note(name, err);
+      lastErr = err;
     }
-  } else {
-    console.warn("[markets] COINGECKO_API_KEY ausente — a usar Binance directamente.");
   }
-  try {
-    return await fromBinance();
-  } catch (err) {
-    console.error("[markets] Binance falhou:", err instanceof Error ? err.message : err);
-    throw err;
-  }
+  throw lastErr instanceof Error ? lastErr : new Error("fonte de mercado indisponível");
 }
