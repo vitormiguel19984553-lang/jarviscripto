@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fetchMarketsFromSource } from "@/lib/market-source";
+import { fetchMarketsFromSource, lastSourceErrors } from "@/lib/market-source";
 
 /**
  * Proxy de mercado: a chamada à fonte é feita no servidor (CoinGecko demo ou
- * Binance), com cache curta e erro explícito para o frontend.
+ * Binance), com cache e erro explícito para o frontend.
+ *
+ * Cache de 3 minutos: com 40 moedas por pedido, isto mantém-nos bem abaixo dos
+ * limites do tier público da CoinGecko.
  */
-const CACHE_MS = 45_000;
+const CACHE_MS = 180_000;
 let cache: { at: number; payload: unknown } | null = null;
 
 export const Route = createFileRoute("/api/markets")({
@@ -34,8 +37,9 @@ export const Route = createFileRoute("/api/markets")({
           return Response.json(
             {
               error: "market_unavailable",
-              message: "Não foi possível contactar a fonte de dados de mercado.",
+              message: `Não foi possível contactar a fonte de dados de mercado (${reason}).`,
               reason,
+              sources: { ...lastSourceErrors },
             },
             { status: 502 },
           );

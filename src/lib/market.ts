@@ -32,8 +32,12 @@ export async function fetchMarkets(): Promise<Coin[]> {
   if (!res.ok) {
     let message = "Sinais indisponíveis. A tentar novamente…";
     try {
-      const body = (await res.json()) as { message?: string };
+      const body = (await res.json()) as { message?: string; sources?: Record<string, string> };
       if (body?.message) message = body.message;
+      const sources = Object.entries(body?.sources ?? {});
+      if (sources.length) {
+        message += ` · ${sources.map(([k, v]) => `${k}: ${v.split(" @ ")[0]}`).join(" | ")}`;
+      }
     } catch {
       /* resposta sem corpo utilizável */
     }
