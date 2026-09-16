@@ -464,9 +464,21 @@ export function analyseSeries(
     .map((c) => `${c.name}: ${c.value}`)
     .join("; ");
 
+  const extras: string[] = [];
+  if (div.verdict !== "neutro")
+    extras.push(
+      `${div.verdict === "alta" ? "Divergência RSI a favor da subida" : "Divergência RSI a avisar de queda"} — ${div.value}`,
+    );
+  if (brk.points !== 0)
+    extras.push(
+      `${brk.confirmed ? "Rutura confirmada por volume" : "Rutura sem confirmação de volume"} — ${brk.value}`,
+    );
+
   const reason =
     `${checks.length} indicadores cruzados em ${timeframes.length} horizontes ` +
-    `(${agree} a favor, ${against} contra, ${alignment}/${timeframes.length} alinhados). ${top}.`;
+    `(${agree} a favor, ${against} contra, ${alignment}/${timeframes.length} alinhados). ${top}.` +
+    (extras.length ? ` ${extras.join(". ")}.` : "");
+
 
   return {
     action,
