@@ -112,6 +112,111 @@ export function volatility(series: number[]) {
   return Math.sqrt(v) * 100;
 }
 
+/** RSI calculado ponto a ponto sobre a série (últimos `count` pontos). */
+function rsiSeries(series: number[], period = 14, count = 24): number[] {
+  const out: number[] = [];
+  const start = Math.max(period + 1, series.length - count);
+  for (let i = start; i <= series.length; i++) out.push(rsi(series.slice(0, i), period));
+  return out;
+}
+
+/**
+ * Divergência entre a direcção do RSI e a do preço na janela recente.
+ * Alta: preço faz mínimo mais baixo enquanto o RSI faz mínimo mais alto.
+ * Baixa: preço faz máximo mais alto enquanto o RSI faz máximo mais baixo.
+ */
+export function rsiDivergence(
+  series: number[],
+  window = 24,
+): { verdict: Verdict3; value: string } {
+  const rs = rsiSeries(series, 14, window);
+  if (rs.length < 8) return { verdict: "neutro", value: "janela curta" };
+  const px = series.slice(-rs.length);
+  const half = Math.floor(rs.length / 2);
+  const firstPx = px.slice(0, half);
+  const lastPx = px.slice(half);
+  const firstR = rs.slice(0, half);
+  const lastR = rs.slice(half);
+  const min = (a: number[]) => Math.min(...a);
+  const max = (a: number[]) => Math.max(...a);
+
+  const lowerLow = min(lastPx) < min(firstPx) * 0.999;
+  const higherRsiLow = min(lastR) > min(firstR) + 1.5;
+  const higherHigh = max(lastPx) > max(firstPx) * 1.001;
+  const lowerRsiHigh = max(lastR) < max(firstR) - 1.5;
+
+  if (lowerLow && higherRsiLow)
+    return {
+      verdict: "alta",
+      value: `divergência positiva (preço em mínimo mais baixo, RSI ${min(firstR).toFixed(0)}→${min(lastR).toFixed(0)})`,
+    };
+  if (higherHigh && lowerRsiHigh)
+    return {
+      verdict: "baixa",
+      value: `divergência negativa (preço em máximo mais alto, RSI ${max(firstR).toFixed(0)}→${max(lastR).toFixed(0)})`,
+    };
+  return { verdict: "neutro", value: "sem divergência" };
+}
+
+/**
+ * Rutura de máximo/mínimo local confirmada (ou não) pelo volume do período.
+ * Sem série de volumes, usa a amplitude dos retornos como proxy de actividade.
+ */
+export function volumeBreakout(
+  series: number[],
+  volumes?: number[],
+  window = 24,
+): { verdict: Verdict3; value: string; points: number; confirmed: boolean } {
+  const neutral = { verdict: "neutro" as Verdict3, value: "sem rutura", points: 0, confirmed: false };
+  if (series.length < window + 4) return neutral;
+  const last = series[series.length - 1];
+  const prior = series.slice(-window - 1, -1);
+  const hi = Math.max(...prior);
+  const lo = Math.min(...prior);
+
+  const activity =
+    volumes && volumes.length >= window + 1
+      ? volumes.slice(-window - 1)
+      : series
+          .slice(-window - 2)
+          .map((p, i, a) => (i === 0 ? 0 : Math.abs(p / a[i - 1] - 1)))
+          .slice(1);
+  const current = activity[activity.length - 1] ?? 0;
+  const base = activity.slice(0, -1);
+  const avg = base.reduce((a, b) => a + b, 0) / (base.length || 1);
+  const ratio = avg > 0 ? current / avg : 1;
+  const proxy = !(volumes && volumes.length >= window + 1);
+  const label = proxy ? "actividade" : "volume";
+
+  const up = last > hi;
+  const down = last < lo;
+  if (!up && !down) return neutral;
+
+  if (ratio >= 1.5) {
+    return {
+      verdict: up ? "alta" : "baixa",
+      value: `rutura de ${up ? "máximo" : "mínimo"} confirmada (${label} ${ratio.toFixed(1)}x a média)`,
+      points: up ? 12 : -12,
+      confirmed: true,
+    };
+  }
+  if (ratio < 0.8) {
+    return {
+      verdict: up ? "baixa" : "alta",
+      value: `rutura de ${up ? "máximo" : "mínimo"} sem volume (${label} ${ratio.toFixed(1)}x — provável falsa rutura)`,
+      points: up ? -9 : 6,
+      confirmed: false,
+    };
+  }
+  return {
+    verdict: "neutro",
+    value: `rutura de ${up ? "máximo" : "mínimo"} com ${label} normal (${ratio.toFixed(1)}x)`,
+    points: 0,
+    confirmed: false,
+  };
+}
+
+
 export type Verdict3 = "alta" | "baixa" | "neutro";
 
 /** Um indicador verificado pela IA antes de decidir. */
