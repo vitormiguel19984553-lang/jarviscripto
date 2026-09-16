@@ -294,7 +294,7 @@ export function analyse(coin: Coin): Signal {
  */
 export function analyseSeries(
   series: number[],
-  meta: { total_volume?: number; market_cap?: number } = {},
+  meta: { total_volume?: number; market_cap?: number; volumes?: number[] } = {},
 ): Signal {
   if (series.length < 30) {
     return {
