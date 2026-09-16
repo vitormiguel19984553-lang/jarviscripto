@@ -319,6 +319,20 @@ export function analyseSeries(
     tfVerdict === "alta" ? alignment * 3 : tfVerdict === "baixa" ? -alignment * 3 : -2,
   );
 
+  // 10. Divergência RSI vs preço (factor moderado)
+  const div = rsiDivergence(series);
+  add(
+    "Divergência RSI",
+    div.value,
+    div.verdict,
+    div.verdict === "alta" ? 11 : div.verdict === "baixa" ? -11 : 0,
+  );
+
+  // 11. Rutura confirmada por volume (ou falsa rutura)
+  const brk = volumeBreakout(series, meta.volumes);
+  add("Rutura c/ volume", brk.value, brk.verdict, brk.points);
+
+
   const score = 50 + checks.reduce((a, c) => a + c.points, 0);
   const confidence = Math.max(8, Math.min(92, Math.round(score)));
 
