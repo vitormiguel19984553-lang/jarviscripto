@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { topRiskPatterns } from "@/lib/brainStore";
+import { shapeLabel } from "@/lib/trajectory";
+import { topShapes } from "@/lib/trajectoryStore";
 
 /** Cérebro da IA: padrões memorizados e pareceres da segunda IA. */
 export function BrainPanel({ userId }: { userId: string }) {
@@ -21,6 +23,12 @@ export function BrainPanel({ userId }: { userId: string }) {
         .limit(6);
       return data ?? [];
     },
+    refetchInterval: 60_000,
+  });
+
+  const shapes = useQuery({
+    queryKey: ["ia-trajetorias", userId],
+    queryFn: () => topShapes(supabase, userId, 6),
     refetchInterval: 60_000,
   });
 
@@ -95,6 +103,40 @@ export function BrainPanel({ userId }: { userId: string }) {
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     {o.model} · confiança {o.confidence_before ?? "—"}% →{" "}
                     {o.confidence_after ?? "—"}% · {new Date(o.created_at).toLocaleString("pt-PT")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="lg:col-span-2">
+            <h3 className="text-[11px] uppercase tracking-widest text-muted-foreground">
+              Trajetórias típicas depois da entrada
+            </h3>
+            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+              {(shapes.data ?? []).length === 0 && (
+                <li className="text-xs text-muted-foreground">
+                  Ainda sem trajetórias — a IA regista o percurso do preço (+1, +5, +15, +30 e +60
+                  min) de cada posição e aprende a forma típica de cada padrão.
+                </li>
+              )}
+              {(shapes.data ?? []).map((t) => (
+                <li
+                  key={`${t.pattern_key}-${t.shape}`}
+                  className="rounded-md border border-border bg-secondary/40 p-3 text-xs"
+                >
+                  <p className="font-display text-[11px] tracking-widest text-primary">
+                    {shapeLabel(t.shape).toUpperCase()}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {t.trades} casos · {t.wins} acertos · pico médio +{t.avg_peak_pct.toFixed(2)}%
+                    aos ~{Math.round(t.avg_peak_min)}min · fecho médio{" "}
+                    <span className={t.avg_final_pct >= 0 ? "text-success" : "text-destructive"}>
+                      {t.avg_final_pct.toFixed(2)}%
+                    </span>
+                  </p>
+                  <p className="mt-1 truncate text-[10px] text-muted-foreground">
+                    padrão: {t.pattern_key.replaceAll("|", " · ").replaceAll("_", " ")}
                   </p>
                 </li>
               ))}
