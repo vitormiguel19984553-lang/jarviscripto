@@ -27,6 +27,8 @@ import {
 } from "@/lib/learning";
 import { patternFor, reviseConfidence, type MemoryRow, type Pattern } from "@/lib/brain";
 import { loadPatternMemory, recordPattern } from "@/lib/brainStore";
+import { capTakeProfit, NO_ADVICE, shapeLabel } from "@/lib/trajectory";
+import { recordTrajectory, samplePosition, trajectoryAdvice } from "@/lib/trajectoryStore";
 import { limitsFor, type PlanTier } from "@/lib/plans";
 import { loadPlan } from "@/lib/planStore";
 import {
@@ -622,6 +624,20 @@ export function useJarvis(userId: string, coins: Coin[]) {
           .select()
           .single();
 
+        const traj = await recordTrajectory(supabase, {
+          userId,
+          patternKey: pos.entry_pattern_key,
+          tradeId: data?.id ?? null,
+          trajectory: pos.trajectory,
+          openedAt: pos.opened_at,
+          finalPct: res.movePct,
+          pnl: res.pnl,
+        });
+        const shownReason = traj ? `${reason} · trajetória: ${shapeLabel(traj.shape)}` : reason;
+        if (traj && data?.id) {
+          void supabase.from("trades").update({ reason: shownReason }).eq("id", data.id);
+        }
+
         logLine({
           id: data?.id,
           time: data ? new Date(data.created_at) : new Date(),
@@ -630,7 +646,7 @@ export function useJarvis(userId: string, coins: Coin[]) {
           amount: res.investedPart,
           pnl: res.pnl,
           confidence,
-          reason,
+          reason: shownReason,
         });
 
         if (alertsRef.current.on_trade && Math.abs(res.pnl) >= alertsRef.current.min_pnl) {
@@ -675,14 +691,21 @@ export function useJarvis(userId: string, coins: Coin[]) {
       for (const pos of positionsRef.current) {
         const coin = coinsRef.current.find((c) => c.id === pos.coin_id);
         if (!coin) continue;
-        const dyn = protectionForPosition({
-          base: protectionRef.current,
-          volatilityPct: recentVolatility(coin),
-          positionValue: pos.invested,
-          fastExit: fastExitRef.current,
-        });
+        const dyn = capTakeProfit(
+          protectionForPosition({
+            base: protectionRef.current,
+            volatilityPct: recentVolatility(coin),
+            positionValue: pos.invested,
+            fastExit: fastExitRef.current,
+          }),
+          pos.tp_cap_pct,
+        );
         const forced = forcedExit(pos, coin.current_price, dyn);
         if (!forced.exit) {
+          const sampled = await samplePosition(supabase, userId, pos, coin.current_price).catch(
+            () => null,
+          );
+          if (sampled) pos.trajectory = sampled;
           if (coin.current_price > pos.peak_price) {
             pos.peak_price = coin.current_price;
             void savePeak(userId, pos.symbol, coin.current_price).catch(() => undefined);
@@ -787,6 +810,9 @@ export function useJarvis(userId: string, coins: Coin[]) {
         /* a memória nunca bloqueia a operação */
       }
       void memory;
+      const trajAdvice = position ? NO_ADVICE : await trajectoryAdvice(supabase, userId, pattern.key);
+      if (trajAdvice.penalty > 0) confidence = Math.max(5, confidence - trajAdvice.penalty);
+      memoryNote = [memoryNote, trajAdvice.note].filter(Boolean).join(" · ");
       if (confidence < threshold) {
         if (memoryNote) {
           logLine({
@@ -858,6 +884,10 @@ export function useJarvis(userId: string, coins: Coin[]) {
         pattern,
         confidence,
       });
+      if (!position) {
+        nextPos.tp_cap_pct = trajAdvice.tpCapPct;
+        nextPos.trajectory_note = trajAdvice.note || null;
+      }
       let saved: SimPosition;
       try {
         saved = await savePosition(userId, nextPos);
