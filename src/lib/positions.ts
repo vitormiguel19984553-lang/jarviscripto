@@ -21,6 +21,11 @@ export type SimPosition = {
   entry_pattern_key: string | null;
   entry_pattern_desc: string | null;
   entry_confidence: number;
+  /** Memória de trajetórias (opcional; ver src/lib/trajectory.ts). */
+  opened_at?: string | null;
+  trajectory?: unknown;
+  tp_cap_pct?: number | null;
+  trajectory_note?: string | null;
 };
 
 /** Variação (%) da posição face ao preço médio de entrada. */

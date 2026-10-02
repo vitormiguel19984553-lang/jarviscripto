@@ -36,6 +36,8 @@ import {
   withUserFloor,
 } from "@/lib/learning";
 import { GLOBAL_SYMBOL } from "@/lib/strategy";
+import { capTakeProfit, NO_ADVICE, shapeLabel } from "@/lib/trajectory";
+import { recordTrajectory, samplePosition, trajectoryAdvice } from "@/lib/trajectoryStore";
 import type { Opinion } from "@/lib/second-opinion.server";
 import {
   amountWithAggression,
@@ -225,7 +227,7 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const { data: posRows } = await supabaseAdmin
             .from("sim_positions")
             .select(
-              "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence,opened_at",
+              "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence,opened_at,trajectory,tp_cap_pct",
             )
             .eq("user_id", s.user_id);
           const positions: SimPosition[] = (posRows ?? []).map((p) => ({
@@ -244,6 +246,15 @@ export const Route = createFileRoute("/api/public/bot-tick")({
             (posRows ?? []).map((p) => [p.symbol, (p as { opened_at?: string }).opened_at ?? null]),
           );
           const heldByCoin = new Map(positions.map((p) => [p.coin_id, p]));
+          const trajBySymbol = new Map(
+            (posRows ?? []).map((p) => [p.symbol, (p as { trajectory?: unknown }).trajectory ?? []]),
+          );
+          const tpCapBySymbol = new Map(
+            (posRows ?? []).map((p) => [
+              p.symbol,
+              Number((p as { tp_cap_pct?: number | null }).tp_cap_pct ?? 0) || null,
+            ]),
+          );
 
 
           const { data: prefs } = await supabaseAdmin
@@ -540,7 +551,22 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               })
               .select("id")
               .maybeSingle();
-            void tradeRow;
+            // Memória de trajetórias: classifica o percurso desde a entrada.
+            const traj = await recordTrajectory(supabaseAdmin, {
+              userId: s.user_id,
+              patternKey: pos.entry_pattern_key,
+              tradeId: tradeRow?.id ?? null,
+              trajectory: trajBySymbol.get(pos.symbol),
+              openedAt: openedAtBySymbol.get(pos.symbol),
+              finalPct: res.movePct,
+              pnl,
+            });
+            if (traj && tradeRow?.id) {
+              await supabaseAdmin
+                .from("trades")
+                .update({ reason: `${reason} · trajetória: ${shapeLabel(traj.shape)}` })
+                .eq("id", tradeRow.id);
+            }
 
             if (!s.real_mode) {
               await supabaseAdmin
@@ -620,15 +646,30 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               continue;
             }
 
-            const dyn = protectionForPosition({
-              base: baseProtection,
-              volatilityPct: recentVolatility(coin),
-              positionValue: Number(pos.invested ?? 0),
-              fastExit: Boolean((s as { fast_exit?: boolean }).fast_exit ?? true),
-            });
+            const dyn = capTakeProfit(
+              protectionForPosition({
+                base: baseProtection,
+                volatilityPct: recentVolatility(coin),
+                positionValue: Number(pos.invested ?? 0),
+                fastExit: Boolean((s as { fast_exit?: boolean }).fast_exit ?? true),
+              }),
+              tpCapBySymbol.get(pos.symbol),
+            );
             const forced = forcedExit(pos, coin.current_price, dyn);
 
             if (!forced.exit) {
+              const sampled = await samplePosition(
+                supabaseAdmin,
+                s.user_id,
+                {
+                  symbol: pos.symbol,
+                  avg_entry_price: pos.avg_entry_price,
+                  opened_at: openedAtBySymbol.get(pos.symbol),
+                  trajectory: trajBySymbol.get(pos.symbol),
+                },
+                coin.current_price,
+              );
+              if (sampled) trajBySymbol.set(pos.symbol, sampled);
               if (coin.current_price > pos.peak_price) {
                 await supabaseAdmin
                   .from("sim_positions")
@@ -769,7 +810,12 @@ export const Route = createFileRoute("/api/public/bot-tick")({
           const mem = await memoryFor(pattern);
           const revised = reviseConfidence(signal.confidence, mem.own, mem.global);
           let confidence = revised.confidence;
-          const memoryNote = revised.note;
+          // Memória de trajetórias: só para entradas (a forma após comprar).
+          const trajAdvice = position
+            ? NO_ADVICE
+            : await trajectoryAdvice(supabaseAdmin, s.user_id, pattern.key);
+          if (trajAdvice.penalty > 0) confidence = Math.max(5, confidence - trajAdvice.penalty);
+          const memoryNote = [revised.note, trajAdvice.note].filter(Boolean).join(" · ");
           if (confidence < threshold) {
             await supabaseAdmin.from("ia_pareceres").insert({
               user_id: s.user_id,
@@ -947,6 +993,9 @@ export const Route = createFileRoute("/api/public/bot-tick")({
               entry_confidence: nextPos.entry_confidence,
               opened_at: nowIso,
               updated_at: nowIso,
+              trajectory: [],
+              tp_cap_pct: trajAdvice.tpCapPct,
+              trajectory_note: trajAdvice.note || null,
 
             },
             { onConflict: "user_id,symbol" },

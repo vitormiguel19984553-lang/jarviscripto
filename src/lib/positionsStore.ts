@@ -6,7 +6,7 @@ export async function loadPositions(userId: string): Promise<SimPosition[]> {
   const { data, error } = await supabase
     .from("sim_positions")
     .select(
-      "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence",
+      "id,symbol,coin_id,quantity,avg_entry_price,invested,peak_price,entry_pattern_key,entry_pattern_desc,entry_confidence,opened_at,trajectory,tp_cap_pct,trajectory_note",
     )
     .eq("user_id", userId);
   if (error) throw error;
@@ -21,6 +21,10 @@ export async function loadPositions(userId: string): Promise<SimPosition[]> {
     entry_pattern_key: r.entry_pattern_key,
     entry_pattern_desc: r.entry_pattern_desc,
     entry_confidence: Number(r.entry_confidence),
+    opened_at: r.opened_at,
+    trajectory: r.trajectory,
+    tp_cap_pct: r.tp_cap_pct == null ? null : Number(r.tp_cap_pct),
+    trajectory_note: r.trajectory_note,
   }));
 }
 
@@ -39,14 +43,21 @@ export async function savePosition(userId: string, pos: SimPosition): Promise<Si
         entry_pattern_key: pos.entry_pattern_key,
         entry_pattern_desc: pos.entry_pattern_desc,
         entry_confidence: pos.entry_confidence,
+        ...(pos.tp_cap_pct !== undefined ? { tp_cap_pct: pos.tp_cap_pct } : {}),
+        ...(pos.trajectory_note !== undefined ? { trajectory_note: pos.trajectory_note } : {}),
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,symbol" },
     )
-    .select("id")
+    .select("id,opened_at,trajectory")
     .maybeSingle();
   if (error) throw error;
-  return { ...pos, id: data?.id ?? pos.id };
+  return {
+    ...pos,
+    id: data?.id ?? pos.id,
+    opened_at: data?.opened_at ?? pos.opened_at ?? null,
+    trajectory: data?.trajectory ?? pos.trajectory ?? [],
+  };
 }
 
 export async function closePosition(userId: string, symbol: string) {
