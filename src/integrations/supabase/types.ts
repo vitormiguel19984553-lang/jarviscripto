@@ -623,6 +623,51 @@ export type Database = {
           },
         ]
       }
+      ia_trajetorias: {
+        Row: {
+          avg_final_pct: number
+          avg_peak_min: number
+          avg_peak_pct: number
+          created_at: string
+          id: string
+          pattern_key: string
+          shape: string
+          total_pnl: number
+          trades: number
+          updated_at: string
+          user_id: string
+          wins: number
+        }
+        Insert: {
+          avg_final_pct?: number
+          avg_peak_min?: number
+          avg_peak_pct?: number
+          created_at?: string
+          id?: string
+          pattern_key: string
+          shape: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id: string
+          wins?: number
+        }
+        Update: {
+          avg_final_pct?: number
+          avg_peak_min?: number
+          avg_peak_pct?: number
+          created_at?: string
+          id?: string
+          pattern_key?: string
+          shape?: string
+          total_pnl?: number
+          trades?: number
+          updated_at?: string
+          user_id?: string
+          wins?: number
+        }
+        Relationships: []
+      }
       phone_verifications: {
         Row: {
           attempts: number
@@ -855,6 +900,9 @@ export type Database = {
           peak_price: number
           quantity: number
           symbol: string
+          tp_cap_pct: number | null
+          trajectory: Json
+          trajectory_note: string | null
           updated_at: string
           user_id: string
         }
@@ -870,6 +918,9 @@ export type Database = {
           peak_price?: number
           quantity?: number
           symbol: string
+          tp_cap_pct?: number | null
+          trajectory?: Json
+          trajectory_note?: string | null
           updated_at?: string
           user_id: string
         }
@@ -885,6 +936,9 @@ export type Database = {
           peak_price?: number
           quantity?: number
           symbol?: string
+          tp_cap_pct?: number | null
+          trajectory?: Json
+          trajectory_note?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1017,6 +1071,8 @@ export type Database = {
           pnl: number
           reason: string
           symbol: string
+          trajectory: Json | null
+          trajectory_shape: string | null
           user_id: string
         }
         Insert: {
@@ -1028,6 +1084,8 @@ export type Database = {
           pnl: number
           reason: string
           symbol: string
+          trajectory?: Json | null
+          trajectory_shape?: string | null
           user_id: string
         }
         Update: {
@@ -1039,6 +1097,8 @@ export type Database = {
           pnl?: number
           reason?: string
           symbol?: string
+          trajectory?: Json | null
+          trajectory_shape?: string | null
           user_id?: string
         }
         Relationships: []
